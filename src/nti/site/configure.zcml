@@ -10,6 +10,7 @@
 	<include package="zope.security" />
 	
 	<include package="zope.site" />
+	<include package="zope.location" />
 
 	<!--
 	Our own version of zope.site.threadSiteSubscriber
