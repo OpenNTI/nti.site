@@ -53,7 +53,8 @@ setup(
 		'zope.security',
         'zope.site',
         'zope.traversing',
-        'nti.schema'
+        'nti.schema',
+        'nti.transactions'
 	],
 	extras_require={
 		'test': TESTS_REQUIRE,

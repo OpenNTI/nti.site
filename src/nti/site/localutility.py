@@ -35,9 +35,7 @@ def install_utility(utility, utility_name, provided, local_site_manager):
 	# bases
 
 	local_site_manager[utility_name] = utility
-
-	local_site_manager.registerUtility( utility,
-										provided=provided )
+	local_site_manager.registerUtility( utility, provided=provided )
 
 def install_utility_on_registration(utility, utility_name, provided, event):
 	"""
@@ -50,7 +48,6 @@ def install_utility_on_registration(utility, utility_name, provided, event):
 
 	registration = event.object
 	local_site_manager = registration.registry
-
 	install_utility(utility, utility_name, provided, local_site_manager)
 
 def uninstall_utility_on_unregistration(utility_name, provided, event):
@@ -72,8 +69,7 @@ def uninstall_utility_on_unregistration(utility_name, provided, event):
 	looked_up = local_site_manager.getUtility(provided)
 	assert looked_up is child_component
 
-	local_site_manager.unregisterUtility( child_component,
-										  provided=provided)
+	local_site_manager.unregisterUtility( child_component, provided=provided)
 	del local_site_manager[utility_name]
 
 def queryNextUtility(context, interface, default=None):
