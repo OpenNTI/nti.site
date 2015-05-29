@@ -36,18 +36,18 @@ class HostPolicyFolder(Folder):
 
 	def __str__(self):
 		return 'HostPolicyFolder(%s)' % self.__name__
-	
+
 	def __repr__(self):
-		return 'HostPolicyFolder(%s,%s)' % (self.__name__,id(self))
+		return 'HostPolicyFolder(%s,%s)' % (self.__name__, id(self))
 
 try:
 	_subscribed_registration = True
-	
+
 	from zope.interface.registry import notify
 	from zope.interface.registry import Registered
 	from zope.interface.registry import Unregistered
 	from zope.interface.registry import UtilityRegistration
-	
+
 	from zope.interface.registry import _getName
 	from zope.interface.registry import _getUtilityProvided
 except ImportError:
@@ -55,7 +55,7 @@ except ImportError:
 
 @interface.implementer(IHostPolicySiteManager)
 class HostPolicySiteManager(_ZLocalSiteManager):
-	
+
 	def __repr__(self):
 		try:
 			return super(HostPolicySiteManager, self).__repr__()
@@ -64,47 +64,46 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 
 	def subscribedRegisterUtility(self, component=None, provided=None, name='',
 								  info=u'', event=True, factory=None):
-		
-		ConnectionStateError
+
 		if not _subscribed_registration:
 			return HostPolicySiteManager.registerUtility(self, component, provided,
 												 		 name, info, event, factory)
-	
+
 		if factory:
 			if component:
 				raise TypeError("Can't specify factory and component.")
 			component = factory()
-		
+
 		if provided is None:
 			provided = _getUtilityProvided(component)
-		
+
 		if name == u'':
 			name = _getName(component)
-		
+
 		reg = self._utility_registrations.get((provided, name))
 		if reg is not None:
 			if reg[:2] == (component, info):
 				# already registered
 				return
 			self.unregisterUtility(reg[0], provided, name)
-		
+
 		self._utility_registrations[(provided, name)] = component, info, factory
 		self.utilities.register((), provided, name, component)
-		
+
 		self.utilities.subscribe((), provided, component)
-		
+
 		if event:
 			notify(Registered(
 				UtilityRegistration(self, provided, name, component, info,
-									factory) ))
-			
+									factory)))
+
 	def subscribedUnregisterUtility(self, component=None, provided=None, name=u'',
 						  			factory=None):
-		
+
 		if not _subscribed_registration:
 			return HostPolicySiteManager.unregisterUtility(self, component, provided,
 														   name, factory)
-			
+
 		if factory:
 			if component:
 				raise TypeError("Can't specify factory and component.")
