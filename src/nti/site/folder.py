@@ -15,6 +15,8 @@ from zope.site.folder import Folder
 
 from zope.site.site import LocalSiteManager as _ZLocalSiteManager
 
+from ZODB.POSException import ConnectionStateError
+
 from .interfaces import IHostSitesFolder
 from .interfaces import IHostPolicyFolder
 from .interfaces import IHostPolicySiteManager
@@ -54,9 +56,16 @@ except ImportError:
 @interface.implementer(IHostPolicySiteManager)
 class HostPolicySiteManager(_ZLocalSiteManager):
 	
+	def __repr__(self):
+		try:
+			return super(HostPolicySiteManager, self).__repr__()
+		except ConnectionStateError:
+			return object.__repr__(self)
+
 	def subscribedRegisterUtility(self, component=None, provided=None, name='',
 								  info=u'', event=True, factory=None):
 		
+		ConnectionStateError
 		if not _subscribed_registration:
 			return HostPolicySiteManager.registerUtility(self, component, provided,
 												 		 name, info, event, factory)
