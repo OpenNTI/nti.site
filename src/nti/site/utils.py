@@ -11,15 +11,17 @@ logger = __import__('logging').getLogger(__name__)
 
 from .interfaces import IHostPolicySiteManager
 
-def registerUtility(registry, component, provided, name):
+def registerUtility(registry, component, provided, name, event=True):
 	if IHostPolicySiteManager.providedBy(registry):
 		return registry.subscribedRegisterUtility(component,
 									 			  provided=provided,
-									 			  name=name)
+									 			  name=name,
+									 			  event=event)
 	else:
 		return registry.registerUtility(component,
 									 	provided=provided,
-									 	name=name)
+									 	name=name,
+									 	event=event)
 
 def unregisterUtility(registry, provided, name):
 	if IHostPolicySiteManager.providedBy(registry):
