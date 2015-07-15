@@ -41,22 +41,22 @@ class BasedSiteManager(_ZLocalSiteManager):
 	# will stick around until a gc is run. (For testing purposes,
 	# it is important to GC or you can get weird errors like:
 	# File "zope/interface/adapter.py", line 456, in changed
-	#    super(AdapterLookupBase, self).changed(None)
+	#	super(AdapterLookupBase, self).changed(None)
 	# File "ZODB/Connection.py", line 857, in setstate
-	#    raise ConnectionStateError(msg)
+	#	raise ConnectionStateError(msg)
 	#  ConfigurationExecutionError: <class 'ZODB.POSException.ConnectionStateError'>:
-	#    Shouldn't load state for 0x237f4ee301650a49 when the connection is closed
+	#	Shouldn't load state for 0x237f4ee301650a49 when the connection is closed
 	# in:
 	# File "zope/site/configure.zcml", line 13.4-14.71
 	# <implements interface="zope.annotation.interfaces.IAttributeAnnotatable" />
 	# Fortunately, Python's GC is precise and refcounting, so as long as we do not leak
 	# refs to these, we're fine
 
-	def _setBases( self, bases ):
+	def _setBases(self, bases):
 		# Bypass the direct superclass.
-		_ZPersistentComponents._setBases( self, bases )
+		_ZPersistentComponents._setBases(self, bases)
 
-	def __init__( self, site, name, bases ):
+	def __init__(self, site, name, bases):
 		# Bypass the direct superclass to avoid setting
 		# bases multiple times and initing the BTree portion, which we won't use
 		# NOTE: This means we are fairly tightly coupled
@@ -67,11 +67,12 @@ class BasedSiteManager(_ZLocalSiteManager):
 		self.__name__ = name
 		self.__bases__ = bases
 
-	def _newContainerData(self): # pragma: no cover
-		return None # We won't be used as a folder
+	def _newContainerData(self):  # pragma: no cover
+		return None  # We won't be used as a folder
 
 	def __reduce__(self):
 		raise TypeError("Should not be pickled")
+
 	def __getstate__(self):
 		raise TypeError("Should not be pickled")
 
@@ -81,13 +82,13 @@ class HostSiteManager(BasedSiteManager):
 	registered IComponents plus the dataserver persistent components.
 	"""
 
-	def __init__( self, site, name, host_components, persistent_components ):
+	def __init__(self, site, name, host_components, persistent_components):
 		self._host_components = host_components
 		self._persistent_components = persistent_components
-		BasedSiteManager.__init__( self,
-									site,
-									name,
-									(host_components, persistent_components) )
+		BasedSiteManager.__init__(self,
+								  site,
+								  name,
+								  (host_components, persistent_components))
 
 	@property
 	def host_components(self):
@@ -100,7 +101,7 @@ class HostSiteManager(BasedSiteManager):
 @interface.implementer(comp_interfaces.ISite)
 class TrivialSite(_ZContained):
 
-	def __init__( self, site_manager ):
+	def __init__(self, site_manager):
 		self._sm = site_manager
 
 	def getSiteManager(self):

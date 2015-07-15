@@ -98,7 +98,7 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 									factory)))
 
 	def subscribedUnregisterUtility(self, component=None, provided=None, name=u'',
-						  			factory=None):
+						  			factory=None, event=True):
 
 		if not _subscribed_registration:
 			return HostPolicySiteManager.unregisterUtility(self, component, provided,
@@ -124,14 +124,13 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 			component = old[0]
 
 		# Note that component is now the old thing registered
-
 		del self._utility_registrations[(provided, name)]
 		self.utilities.unregister((), provided, name)
-
 		self.utilities.unsubscribe((), provided, component)
-
-		notify(Unregistered(
-			UtilityRegistration(self, provided, name, component, *old[1:])
-			))
+		
+		if event:
+			notify(Unregistered(
+				UtilityRegistration(self, provided, name, component, *old[1:])
+				))
 
 		return True

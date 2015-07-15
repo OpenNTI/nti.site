@@ -44,11 +44,11 @@ def synchronize_host_policies():
 	# global hierarchy:
 	#  GSM
 	#  \
-	#	S1
-	#    \
-	#	  S2
+	# 	S1
+	#	\
+	# 	  S2
 	# and in the database we have the nti.dataserver and root persistent site managers,
-	# then when we create the persistent sites for S1 and S2 (PS1 and PS2) we want 
+	# then when we create the persistent sites for S1 and S2 (PS1 and PS2) we want
 	# the resolution order to be:
 	#   PS2 -> S2 -> PS1 -> S1 -> DS -> Root -> GSM
 	# That is, we need to get the persistent components mixed in between the
@@ -167,12 +167,12 @@ def run_job_in_all_host_sites(func):
 			base_site = managers.pop()
 			if base_site in sites and base_site not in ordered:
 				# Ie., it's a real one we haven't seen before
-				ordered.append( base_site )
+				ordered.append(base_site)
 
 	results = list()
 	for site in ordered:
 		logger.debug('Running job %s in site %s', func, site.__name__)
 		with current_site(site):
 			result = func()
-			results.append( (site, result) )
+			results.append((site, result))
 	return results

@@ -12,8 +12,9 @@ logger = __import__('logging').getLogger(__name__)
 import warnings
 import contextlib
 
-from zope import interface
 from zope import component
+from zope import interface
+
 from zope.component.hooks import site as current_site
 
 from ZODB.interfaces import IDatabase
