@@ -26,14 +26,14 @@ def find_site_components(site_names):
 	returns none.
 	"""
 	for site_name in site_names:
-		if not site_name: # Empty/default. We want the global. This should only ever be at the end
+		if not site_name:  # Empty/default. We want the global. This should only ever be at the end
 			return None
-		components = component.queryUtility( IComponents, name=site_name )
+		components = component.queryUtility(IComponents, name=site_name)
 		if components is not None:
 			return components
-_find_site_components = find_site_components # BWC
+_find_site_components = find_site_components  # BWC
 
-def get_site_for_site_names( site_names, site=None ):
+def get_site_for_site_names(site_names, site=None):
 	"""
 	Return an :class:`ISite` implementation named for the first virtual site
 	found in the sequence of site_names. If no such site can be found,
@@ -50,9 +50,9 @@ def get_site_for_site_names( site_names, site=None ):
 	if site is None:
 		site = getSite()
 
-	#assert site.getSiteManager().__bases__ == (component.getGlobalSiteManager(),)
+	# assert site.getSiteManager().__bases__ == (component.getGlobalSiteManager(),)
 	# Can we find a named site to use?
-	site_components = _find_site_components( site_names ) if site_names else None # micro-opt to not call if no names
+	site_components = _find_site_components(site_names) if site_names else None  # micro-opt to not call if no names
 	if site_components:
 		# Yes we can.
 		site_name = site_components.__name__
@@ -61,7 +61,7 @@ def get_site_for_site_names( site_names, site=None ):
 		try:
 			pers_site = site['++etc++hostsites'][site_name]
 			site = pers_site
-		except (KeyError,TypeError):
+		except (KeyError, TypeError):
 			# No, nothing persistent, dummy one up.
 			# Note that this code path is deprecated now and not
 			# expected to be hit.
@@ -77,27 +77,48 @@ def get_site_for_site_names( site_names, site=None ):
 			# traversable.
 
 			# Host comps used to be simple, but now they may be hierarchacl
-			#assert site_components.__bases__ == (component.getGlobalSiteManager(),)
-			#gsm = site_components.__bases__[0]
-			#assert site_components.adapters.__bases__ == (gsm.adapters,)
+			# assert site_components.__bases__ == (component.getGlobalSiteManager(),)
+			# gsm = site_components.__bases__[0]
+			# assert site_components.adapters.__bases__ == (gsm.adapters,)
 
 			# But the current site, when given, must always be the main
 			# dataserver site
-			assert isinstance( site, Persistent )
-			assert isinstance( site.getSiteManager(), Persistent )
+			assert isinstance(site, Persistent)
+			assert isinstance(site.getSiteManager(), Persistent)
 
 			main_site = site
-			site_manager = HostSiteManager( main_site.__parent__,
+			site_manager = HostSiteManager(main_site.__parent__,
 											main_site.__name__,
 											site_components,
-											main_site.getSiteManager() )
-			site = TrivialSite( site_manager )
+											main_site.getSiteManager())
+			site = TrivialSite(site_manager)
 			site.__parent__ = main_site
 			site.__name__ = site_name
 
 	return site
 
-## Legacy notes:
+def get_component_hierarchy(site=None):
+	if site is None:
+		site = getSite()
+	site_names = (site.__name__,)
+	resource = _find_site_components(site_names)
+	while resource is not None:
+		yield resource
+		try:
+			resource = resource.__parent__
+		except AttributeError:
+			resource = None
+
+def get_component_hierarchy_names(site=None):
+	result = []
+	for resource in get_component_hierarchy(site):
+		try:
+			result.append(resource.__name__)
+		except AttributeError:
+			break
+	return result
+
+# # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.
 # Ultimately this results in newTransaction being called on the connection object
 # at `transaction.begin` time, which in turn syncs the storage. However,
@@ -116,14 +137,14 @@ def get_site_for_site_names( site_names, site=None ):
 
 # JAM: 2012-09-03: With the database resharding, evaluating the need for this.
 # Disabling it.
-#for db_name, db in conn.db().databases.items():
-#	__traceback_info__ = i, db_name, db, func
-#	if db is None: # For compatibility with databases we no longer use
-#		continue
-#	c2 = conn.get_connection(db_name)
-#	if c2 is conn:
-#		continue
-#	c2.newTransaction()
+# for db_name, db in conn.db().databases.items():
+# 	__traceback_info__ = i, db_name, db, func
+# 	if db is None: # For compatibility with databases we no longer use
+# 		continue
+# 	c2 = conn.get_connection(db_name)
+# 	if c2 is conn:
+# 		continue
+# 	c2.newTransaction()
 
 # Now fire 'newTransaction' to the ISynchronizers, including the root connection
 # This may result in some redundant fires to sub-connections.
