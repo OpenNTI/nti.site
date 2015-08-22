@@ -84,8 +84,8 @@ class _ProxyTraversedSite(ProxyBase):
 	def setSiteManager(self, new_man):
 		raise ValueError()
 
-@component.adapter(ISite,IBeforeTraverseEvent)
-def threadSiteSubscriber( new_site, event ):
+@component.adapter(ISite, IBeforeTraverseEvent)
+def threadSiteSubscriber(new_site, event):
 	"""
 	Set the current ``zope.component.hooks`` site to
 	the ``new_site`` object found during traversal,
@@ -151,8 +151,8 @@ def threadSiteSubscriber( new_site, event ):
 		# TODO: We don't need to proxy the site manager, right?
 		# it's almost never special by itself...
 		new_site_manager = BasedSiteManager( new_site.__parent__,
-											  new_site.__name__,
-											  new_bases )
+											 new_site.__name__,
+											 new_bases )
 		new_site_manager.host_components = host_components
 		new_fake_site = _ProxyTraversedSite( new_site,
 											 new_site_manager )

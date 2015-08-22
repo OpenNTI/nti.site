@@ -100,22 +100,24 @@ def get_site_for_site_names(site_names, site=None):
 def get_component_hierarchy(site=None):
 	if site is None:
 		site = getSite()
+	hostsites = site.__parent__
 	site_names = (site.__name__,)
 	resource = _find_site_components(site_names)
 	while resource is not None:
-		yield resource
 		try:
-			resource = resource.__parent__
-		except AttributeError:
+			name = resource.__name__
+			if name in hostsites:
+				yield resource
+				resource = resource.__parent__
+			else:
+				resource = None
+		except (AttributeError):
 			resource = None
 
 def get_component_hierarchy_names(site=None):
 	result = []
 	for resource in get_component_hierarchy(site):
-		try:
-			result.append(resource.__name__)
-		except AttributeError:
-			break
+		result.append(resource.__name__)
 	return result
 
 # # Legacy notes:
