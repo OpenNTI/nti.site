@@ -27,6 +27,12 @@ class HostSitesFolder(Folder):
 	Simple container implementation for named host sites.
 	"""
 	lastSynchronized = 0
+	
+	def __repr__(self):
+		try:
+			return super(HostSitesFolder, self).__repr__()
+		except ConnectionStateError:
+			return object.__repr__(self)
 
 @interface.implementer(IHostPolicyFolder)
 class HostPolicyFolder(Folder):
