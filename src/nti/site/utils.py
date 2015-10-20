@@ -25,7 +25,7 @@ def registerUtility(registry, component, provided, name, event=True):
 
 def unregisterUtility(registry, component=None, provided=None, name=None):
 	if IHostPolicySiteManager.providedBy(registry):
-		return registry.subscribedUnregisterUtility(component=None,
+		return registry.subscribedUnregisterUtility(component=component,
 													provided=provided,
 													name=name)
 	else:
