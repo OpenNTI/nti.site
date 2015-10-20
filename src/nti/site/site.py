@@ -87,7 +87,7 @@ def get_site_for_site_names(site_names, site=None):
 			assert isinstance(site.getSiteManager(), Persistent)
 
 			main_site = site
-			site_manager = HostSiteManager(main_site.__parent__,
+			site_manager = HostSiteManager(	main_site.__parent__,
 											main_site.__name__,
 											site_components,
 											main_site.getSiteManager())
