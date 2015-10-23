@@ -11,9 +11,10 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+from zope import component
+
 from zope.interface import ro
 
-from zope import component
 from zope.component.interfaces import IComponents
 from zope.component.hooks import site as current_site
 
@@ -45,7 +46,7 @@ def synchronize_host_policies():
 	#  GSM
 	#  \
 	# 	S1
-	#	\
+	# 	\
 	# 	  S2
 	# and in the database we have the nti.dataserver and root persistent site managers,
 	# then when we create the persistent sites for S1 and S2 (PS1 and PS2) we want
@@ -112,32 +113,18 @@ def synchronize_host_policies():
 				site.setSiteManager(site_policy)
 				secondary_comps = site_policy
 
-def run_job_in_all_host_sites(func):
+def get_all_host_sites():
 	"""
-	While already operating inside of a transaction and the dataserver
-	environment, execute the callable given by ``func`` once for each
-	persistent, registered host (see ;func:`synchronize_host_policies`).
-	The callable is run with that site current.
-
 	The order in which sites are accessed is top-down breadth-first,
 	that is, the shallowest to the deepest nested sites. This allows
 	you to assume that your parent sites have already been updated.
 
-	This is typically used to make configuration changes/adjustments
-	to utilities local within each site, while the appropriate event
-	listeners for the site also fire.
-
-	You are responsible for transaction management.
-
-	:raises: Whatever the callable raises.
-	:returns: A list of pairs `(site, result)` containing each site
-		and the result of running the function in that site.
+	:returns: A list of sites
 	:rtype: list
 	"""
 
 	sites = component.getUtility(IEtcNamespace, name='hostsites')
 	sites = list(sites.values())
-	logger.debug("Asked to run job %s in ALL sites", func)
 
 	# The easyiest way to go top-down is to again use the resolution order;
 	# we just have to watch out for duplicates and non-persistent components
@@ -168,8 +155,31 @@ def run_job_in_all_host_sites(func):
 			if base_site in sites and base_site not in ordered:
 				# Ie., it's a real one we haven't seen before
 				ordered.append(base_site)
+	return ordered
+
+def run_job_in_all_host_sites(func):
+	"""
+	While already operating inside of a transaction and the dataserver
+	environment, execute the callable given by ``func`` once for each
+	persistent, registered host (see ;func:`synchronize_host_policies`).
+	The callable is run with that site current.
+
+	This is typically used to make configuration changes/adjustments
+	to utilities local within each site, while the appropriate event
+	listeners for the site also fire.
+
+	You are responsible for transaction management.
+
+	:raises: Whatever the callable raises.
+	:returns: A list of pairs `(site, result)` containing each site
+		and the result of running the function in that site.
+	:rtype: list
+	"""
+
+	logger.debug("Asked to run job %s in ALL sites", func)
 
 	results = list()
+	ordered = get_all_host_sites()
 	for site in ordered:
 		logger.debug('Running job %s in site %s', func, site.__name__)
 		with current_site(site):

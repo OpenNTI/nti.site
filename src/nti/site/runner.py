@@ -29,8 +29,7 @@ def _connection_cm():
 	"""
 	Opens a connection to the default database.
 	"""
-
-	db = component.getUtility( IDatabase )
+	db = component.getUtility(IDatabase)
 	conn = db.open()
 	for c in conn.connections.values():
 		c.setDebugInfo("_connection_cm")
@@ -47,32 +46,32 @@ def _site_cm(conn, site_names=()):
 	# is an ISynchronizer and registers itself with the transaction manager,
 	# so we shouldn't have to do this manually
 	# ... I think the problem was a bad site. I think this can go away.
-	#conn.sync()
+	# conn.sync()
 	# In fact, it must go away; if we sync the conn, we lose the
 	# current transaction
-	sitemanc = conn.root()['nti.dataserver'] # XXX coupling
+	sitemanc = conn.root()['nti.dataserver']  # XXX coupling
 	# Put into a policy if need be
-	sitemanc = get_site_for_site_names( site_names, site=sitemanc )
+	sitemanc = get_site_for_site_names(site_names, site=sitemanc)
 
-	with current_site( sitemanc ):
-		if component.getSiteManager() != sitemanc.getSiteManager(): # pragma: no cover
-			raise SiteNotInstalledError( "Hooks not installed?" )
+	with current_site(sitemanc):
+		if component.getSiteManager() != sitemanc.getSiteManager():  # pragma: no cover
+			raise SiteNotInstalledError("Hooks not installed?")
 		# XXX: Used to do this check...is it really needed?
 		# if component.getUtility( interfaces.IDataserver ) is None: # pragma: no cover
-		#	raise InappropriateSiteError()
+		# 	raise InappropriateSiteError()
 		yield sitemanc
 
 from nti.transactions.transactions import TransactionLoop
 
 class _RunJobInSite(TransactionLoop):
 
-	def __init__( self, *args, **kwargs ):
-		self.site_names = kwargs.pop( 'site_names' )
-		self.job_name = kwargs.pop( 'job_name' )
+	def __init__(self, *args, **kwargs):
+		self.site_names = kwargs.pop('site_names')
+		self.job_name = kwargs.pop('job_name')
 		self.side_effect_free = kwargs.pop('side_effect_free')
-		super(_RunJobInSite,self).__init__( *args, **kwargs )
+		super(_RunJobInSite, self).__init__(*args, **kwargs)
 
-	def describe_transaction( self, *args, **kwargs ):
+	def describe_transaction(self, *args, **kwargs):
 		if self.job_name:
 			return self.job_name
 		# Derive from the function
@@ -84,11 +83,11 @@ class _RunJobInSite(TransactionLoop):
 			note = func.__name__
 		return note
 
-	def run_handler( self, conn,  *args, **kwargs ):
+	def run_handler(self, conn, *args, **kwargs):
 		with _site_cm(conn, self.site_names):
 			for c in conn.connections.values():
 				c.setDebugInfo(self.site_names)
-			result = self.handler( *args, **kwargs )
+			result = self.handler(*args, **kwargs)
 
 			# Commit the transaction while the site is still current
 			# so that any before-commit hooks run with that site
@@ -100,14 +99,14 @@ class _RunJobInSite(TransactionLoop):
 
 			return result
 
-	def __call__( self, *args, **kwargs ):
+	def __call__(self, *args, **kwargs):
 		with _connection_cm() as conn:
 			for c in conn.connections.values():
 				c.setDebugInfo(self.describe_transaction(*args, **kwargs))
 			# Notice we don't keep conn as an ivar anywhere, to avoid
 			# any chance of circular references. These need to be sure to be
 			# reclaimed
-			return super(_RunJobInSite,self).__call__( conn, *args, **kwargs )
+			return super(_RunJobInSite, self).__call__(conn, *args, **kwargs)
 
 _marker = object()
 
@@ -132,14 +131,15 @@ def run_job_in_site(func,
 	if site_names is not _marker:
 		warnings.warn("site_names is deprecated. "
 					  "Call this already in the appropriate site",
-					  FutureWarning )
+					  FutureWarning)
 	else:
 		# This is a bit scuzzy; that's part of why this is going away.
 		# Note the nearly-circular import
+		# TODO: replace with a utility
 		from nti.appserver.policies.site_policies import get_possible_site_names
 		site_names = get_possible_site_names()
 
-	return _RunJobInSite( func,
+	return _RunJobInSite(func,
 						  retries=retries,
 						  sleep=sleep,
 						  site_names=site_names,
