@@ -102,6 +102,7 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 			notify(Registered(
 				UtilityRegistration(self, provided, name, component, info,
 									factory)))
+		return True
 
 	def subscribedUnregisterUtility(self, component=None, provided=None, name=u'',
 						  			factory=None, event=True):
