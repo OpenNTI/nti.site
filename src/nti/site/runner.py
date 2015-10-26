@@ -111,10 +111,10 @@ class _RunJobInSite(TransactionLoop):
 
 _marker = object()
 
-def get_possible_site_names():
+def get_possible_site_names(*args, **kwargs):
 	utility = component.queryUtility(ITransactionSiteNames)
-	result = utility() if utility is not None else None
-	return result or ()
+	result = utility(*args, **kwargs) if utility is not None else None
+	return result
 
 @interface.provider(ISiteTransactionRunner)
 def run_job_in_site(func,
