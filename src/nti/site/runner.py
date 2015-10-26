@@ -20,6 +20,7 @@ from zope.component.hooks import site as current_site
 from ZODB.interfaces import IDatabase
 
 from .interfaces import SiteNotInstalledError
+from .interfaces import ITransactionSiteNames
 from .interfaces import ISiteTransactionRunner
 
 from .site import get_site_for_site_names
@@ -110,6 +111,11 @@ class _RunJobInSite(TransactionLoop):
 
 _marker = object()
 
+def get_possible_site_names():
+	utility = component.queryUtility(ITransactionSiteNames)
+	result = utility() if utility is not None else None
+	return result or ()
+
 @interface.provider(ISiteTransactionRunner)
 def run_job_in_site(func,
 					retries=0,
@@ -133,13 +139,9 @@ def run_job_in_site(func,
 					  "Call this already in the appropriate site",
 					  FutureWarning)
 	else:
-		# This is a bit scuzzy; that's part of why this is going away.
-		# Note the nearly-circular import
-		# TODO: replace with a utility
-		from nti.appserver.policies.site_policies import get_possible_site_names
 		site_names = get_possible_site_names()
 
-	return _RunJobInSite(func,
+	return _RunJobInSite( func,
 						  retries=retries,
 						  sleep=sleep,
 						  site_names=site_names,

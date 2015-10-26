@@ -126,6 +126,15 @@ class IHostSitesFolder(IFolder):
 						  	  default=0.0)
 	lastSynchronized.setTaggedValue('_ext_excluded_out', True)
 
+class ITransactionSiteNames(interface.Interface):
+	"""
+	An interface for a utility that return a list of the possible site names
+	needed whenever transaction is run
+	"""
+	
+	def __call__(self, *args, **kwargs):
+		pass
+
 class ISiteTransactionRunner(interface.Interface):
 	"""
 	Something that runs code within a transaction, properly setting up
