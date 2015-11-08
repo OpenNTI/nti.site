@@ -98,7 +98,7 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 			if reg[:2] == (component, info):
 				# already registered
 				return
-			self.unregisterUtility(reg[0], provided, name)
+			self.subscribedUnregisterUtility(reg[0], provided, name)
 
 		self._utility_registrations[(provided, name)] = component, info, factory
 		self.utilities.register((), provided, name, component)
