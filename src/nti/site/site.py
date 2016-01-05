@@ -87,7 +87,7 @@ def get_site_for_site_names(site_names, site=None):
 			assert isinstance(site.getSiteManager(), Persistent)
 
 			main_site = site
-			site_manager = HostSiteManager(	main_site.__parent__,
+			site_manager = HostSiteManager(main_site.__parent__,
 											main_site.__name__,
 											site_components,
 											main_site.getSiteManager())
@@ -120,7 +120,7 @@ def get_component_hierarchy_names(site=None):
 		result.append(resource.__name__)
 	return result
 
-# # Legacy notes:
+# Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.
 # Ultimately this results in newTransaction being called on the connection object
 # at `transaction.begin` time, which in turn syncs the storage. However,

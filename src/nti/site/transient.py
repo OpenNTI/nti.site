@@ -41,11 +41,11 @@ class BasedSiteManager(_ZLocalSiteManager):
 	# will stick around until a gc is run. (For testing purposes,
 	# it is important to GC or you can get weird errors like:
 	# File "zope/interface/adapter.py", line 456, in changed
-	#	super(AdapterLookupBase, self).changed(None)
+	# 	super(AdapterLookupBase, self).changed(None)
 	# File "ZODB/Connection.py", line 857, in setstate
-	#	raise ConnectionStateError(msg)
+	# 	raise ConnectionStateError(msg)
 	#  ConfigurationExecutionError: <class 'ZODB.POSException.ConnectionStateError'>:
-	#	Shouldn't load state for 0x237f4ee301650a49 when the connection is closed
+	# 	Shouldn't load state for 0x237f4ee301650a49 when the connection is closed
 	# in:
 	# File "zope/site/configure.zcml", line 13.4-14.71
 	# <implements interface="zope.annotation.interfaces.IAttributeAnnotatable" />

@@ -30,7 +30,7 @@ also construct a site that descends from that site and contains any applicable p
 .. $Id$
 """
 
-# turn off warning for not calling superclass, calling indirect superclass and 
+# turn off warning for not calling superclass, calling indirect superclass and
 # accessing protected methods. we're deliberately doing both
 # pylint: disable=W0233,W0231,W0212
 
@@ -69,11 +69,11 @@ class _ProxyTraversedSite(ProxyBase):
 	siteManager methods but proxy everything else.
 	"""
 
-	def __new__( cls, base, site_manager ):
-		return ProxyBase.__new__( cls, base )
+	def __new__(cls, base, site_manager):
+		return ProxyBase.__new__(cls, base)
 
-	def __init__( self, base, site_manager ):
-		ProxyBase.__init__( self, base )
+	def __init__(self, base, site_manager):
+		ProxyBase.__init__(self, base)
 		self.__site_manager = site_manager
 
 	@non_overridable
@@ -105,8 +105,8 @@ def threadSiteSubscriber(new_site, event):
 	We expect that something else takes care of clearing the site.
 	"""
 
-	if (IMainApplicationFolder.providedBy( new_site )
-		or IRootFolder.providedBy( new_site ) ):
+	if (	IMainApplicationFolder.providedBy(new_site)
+		or	IRootFolder.providedBy(new_site)):
 		# TODO: Since we get these events, we could
 		# actually replace nti.appserver.tweens.zope_site_tween
 		# with this. That's probably the longterm answer.
@@ -115,7 +115,7 @@ def threadSiteSubscriber(new_site, event):
 	current_site = getSite()
 	if current_site is None:
 		# Nothing to do
-		setSite( new_site )
+		setSite(new_site)
 	elif current_site is new_site:
 		# This is typically the case when we traverse directly
 		# into utilities registered with the site, for example
@@ -133,7 +133,7 @@ def threadSiteSubscriber(new_site, event):
 		# TODO: We might want to only allow this if there is some
 		# inheritance relationship between the two sites?
 		pass
-	elif hasattr( current_site.getSiteManager(), 'host_components' ):
+	elif hasattr(current_site.getSiteManager(), 'host_components'):
 		# A site synthesized by get_site_for_site_names
 		# OR one previously synthesized by this function. In either case,
 		# we always want to proxy, putting the preserved host components
@@ -150,14 +150,14 @@ def threadSiteSubscriber(new_site, event):
 		new_bases = new_site.getSiteManager().__bases__ + (host_components,)
 		# TODO: We don't need to proxy the site manager, right?
 		# it's almost never special by itself...
-		new_site_manager = BasedSiteManager( new_site.__parent__,
-											 new_site.__name__,
-											 new_bases )
+		new_site_manager = BasedSiteManager(new_site.__parent__,
+											new_site.__name__,
+											new_bases)
 		new_site_manager.host_components = host_components
-		new_fake_site = _ProxyTraversedSite( new_site,
-											 new_site_manager )
+		new_fake_site = _ProxyTraversedSite(new_site,
+											new_site_manager)
 
-		setSite( new_fake_site )
+		setSite(new_fake_site)
 	else:
 		# Cancel traversal using a LocationError. This typically
 		# will get surfaced as a 404.

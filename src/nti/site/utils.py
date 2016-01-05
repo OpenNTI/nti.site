@@ -31,5 +31,5 @@ def unregisterUtility(registry, component=None, provided=None, name=None, event=
 													event=event)
 	else:
 		return registry.unregisterUtility(component=component,
-										  provided=provided, 
+										  provided=provided,
 										  name=name)
