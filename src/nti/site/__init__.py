@@ -42,3 +42,6 @@ from __future__ import print_function, unicode_literals, absolute_import, divisi
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
+
+from nti.site.utils import registerUtility
+from nti.site.utils import unregisterUtility

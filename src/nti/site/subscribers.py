@@ -55,10 +55,10 @@ from zope.site.interfaces import INewLocalSite
 
 from zope.traversing.interfaces import IBeforeTraverseEvent
 
-from .transient import BasedSiteManager
+from nti.site.interfaces import IHostPolicyFolder
+from nti.site.interfaces import IMainApplicationFolder
 
-from .interfaces import IHostPolicyFolder
-from .interfaces import IMainApplicationFolder
+from nti.site.transient import BasedSiteManager
 
 class _ProxyTraversedSite(ProxyBase):
 	"""
@@ -105,8 +105,7 @@ def threadSiteSubscriber(new_site, event):
 	We expect that something else takes care of clearing the site.
 	"""
 
-	if (	IMainApplicationFolder.providedBy(new_site)
-		or	IRootFolder.providedBy(new_site)):
+	if IMainApplicationFolder.providedBy(new_site) or IRootFolder.providedBy(new_site):
 		# TODO: Since we get these events, we could
 		# actually replace nti.appserver.tweens.zope_site_tween
 		# with this. That's probably the longterm answer.

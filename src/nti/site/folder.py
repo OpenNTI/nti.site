@@ -9,6 +9,8 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import warnings
+
 from zope import interface
 
 from zope.site.folder import Folder
@@ -17,9 +19,9 @@ from zope.site.site import LocalSiteManager as _ZLocalSiteManager
 
 from ZODB.POSException import ConnectionStateError
 
-from .interfaces import IHostSitesFolder
-from .interfaces import IHostPolicyFolder
-from .interfaces import IHostPolicySiteManager
+from nti.site.interfaces import IHostSitesFolder
+from nti.site.interfaces import IHostPolicyFolder
+from nti.site.interfaces import IHostPolicySiteManager
 
 @interface.implementer(IHostSitesFolder)
 class HostSitesFolder(Folder):
@@ -27,13 +29,13 @@ class HostSitesFolder(Folder):
 	Simple container implementation for named host sites.
 	"""
 	lastSynchronized = 0
-	
+
 	def __repr__(self):
 		try:
 			return super(HostSitesFolder, self).__repr__()
 		except ConnectionStateError:
 			return object.__repr__(self)
-		
+
 	def _delitemf(self, key):
 		l = self._BTreeContainer__len
 		item = self._SampleContainer__data[key]
@@ -56,14 +58,16 @@ class HostPolicyFolder(Folder):
 try:
 	_subscribed_registration = True
 
+	# XXX: Internal APIs
+	from zope.interface.registry import _getName
+	from zope.interface.registry import _getUtilityProvided
+
 	from zope.interface.registry import notify
 	from zope.interface.registry import Registered
 	from zope.interface.registry import Unregistered
 	from zope.interface.registry import UtilityRegistration
-
-	from zope.interface.registry import _getName
-	from zope.interface.registry import _getUtilityProvided
 except ImportError:
+	warnings.warn("Internals for zope.interface.registry changed")
 	_subscribed_registration = False
 
 @interface.implementer(IHostPolicySiteManager)
@@ -141,7 +145,7 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 		del self._utility_registrations[(provided, name)]
 		self.utilities.unregister((), provided, name)
 		self.utilities.unsubscribe((), provided, component)
-		
+
 		if event:
 			notify(Unregistered(
 				UtilityRegistration(self, provided, name, component, *old[1:])

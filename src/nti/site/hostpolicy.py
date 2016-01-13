@@ -20,10 +20,10 @@ from zope.component.hooks import site as current_site
 
 from zope.traversing.interfaces import IEtcNamespace
 
-from .folder import HostPolicyFolder
-from .folder import HostPolicySiteManager
+from nti.site.folder import HostPolicyFolder
+from nti.site.folder import HostPolicySiteManager
 
-from .interfaces import IMainApplicationFolder
+from nti.site.interfaces import IMainApplicationFolder
 
 def synchronize_host_policies():
 	"""
