@@ -189,10 +189,15 @@ def run_job_in_all_host_sites(func):
 			results.append((site, result))
 	return results
 
+def get_site(site):
+	site = str(site)
+	sites = component.getUtility(IEtcNamespace, name='hostsites')
+	result = sites[site]
+	return result
+
 def run_job_in_host_site(site, func):
 	if isinstance(site, six.string_types):
-		sites = component.getUtility(IEtcNamespace, name='hostsites')
-		site = sites[site]
+		site = get_site(site)
 	logger.debug('Running job %s in site %s', func, site.__name__)
 	with current_site(site):
 		result = func()
