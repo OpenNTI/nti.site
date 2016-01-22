@@ -11,6 +11,8 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import six
+
 from zope import component
 
 from zope.interface import ro
@@ -156,7 +158,7 @@ def get_all_host_sites():
 				# Ie., it's a real one we haven't seen before
 				ordered.append(base_site)
 	return ordered
-
+	
 def run_job_in_all_host_sites(func):
 	"""
 	While already operating inside of a transaction and the dataserver
@@ -186,3 +188,12 @@ def run_job_in_all_host_sites(func):
 			result = func()
 			results.append((site, result))
 	return results
+
+def run_job_in_host_site(site, func):
+	if isinstance(site, six.string_types):
+		sites = component.getUtility(IEtcNamespace, name='hostsites')
+		site = sites[site]
+	logger.debug('Running job %s in site %s', func, site.__name__)
+	with current_site(site):
+		result = func()
+		return result

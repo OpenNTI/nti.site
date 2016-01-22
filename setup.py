@@ -44,6 +44,7 @@ setup(
 	install_requires=[
 		'setuptools',
         'persistent',
+        'six',
         'ZODB',
 		'zope.component',
         'zope.container',
