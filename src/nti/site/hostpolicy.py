@@ -189,11 +189,12 @@ def run_job_in_all_host_sites(func):
 			results.append((site, result))
 	return results
 
-def get_site(site):
+def get_host_site(site):
 	site = str(site)
 	sites = component.getUtility(IEtcNamespace, name='hostsites')
 	result = sites[site]
 	return result
+get_site = get_host_site  # BWC
 
 def run_job_in_host_site(site, func):
 	if isinstance(site, six.string_types):

@@ -43,5 +43,8 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+from nti.site.hostpolicy import get_host_site
+from nti.site.hostpolicy import get_all_host_sites
+
 from nti.site.utils import registerUtility
 from nti.site.utils import unregisterUtility
