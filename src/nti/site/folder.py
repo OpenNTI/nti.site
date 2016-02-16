@@ -140,8 +140,7 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 				raise
 			old = ()
 		else:
-			if (old is None) or ((component is not None) and
-								 (component != old[0])):
+			if (old is None) or ((component is not None) and (component != old[0])):
 				return False
 	
 			if component is None:
