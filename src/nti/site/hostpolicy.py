@@ -11,14 +11,15 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
-import six
+from six import string_types
 
 from zope import component
 
 from zope.interface import ro
 
-from zope.component.interfaces import IComponents
 from zope.component.hooks import site as current_site
+
+from zope.component.interfaces import IComponents
 
 from zope.traversing.interfaces import IEtcNamespace
 
@@ -197,8 +198,7 @@ def get_host_site(site):
 get_site = get_host_site  # BWC
 
 def run_job_in_host_site(site, func):
-	if isinstance(site, six.string_types):
-		site = get_site(site)
+	site = get_host_site(site) if isinstance(site, string_types) else site
 	logger.debug('Running job %s in site %s', func, site.__name__)
 	with current_site(site):
 		result = func()
