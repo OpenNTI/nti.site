@@ -15,11 +15,13 @@ from six import string_types
 
 from zope import component
 
-from zope.interface import ro
-
 from zope.component.hooks import site as current_site
 
 from zope.component.interfaces import IComponents
+
+from zope.interface import ro
+
+from zope.interface.interfaces import ComponentLookupError
 
 from zope.traversing.interfaces import IEtcNamespace
 
@@ -190,11 +192,16 @@ def run_job_in_all_host_sites(func):
 			results.append((site, result))
 	return results
 
-def get_host_site(site):
+def get_host_site(site, safe=False):
 	site = str(site)
-	sites = component.getUtility(IEtcNamespace, name='hostsites')
-	result = sites[site]
-	return result
+	try:
+		sites = component.getUtility(IEtcNamespace, name='hostsites')
+		result = sites[site]
+		return result
+	except (ComponentLookupError, KeyError):
+		if not safe:
+			raise
+	return None
 get_site = get_host_site  # BWC
 
 def run_job_in_host_site(site, func):
