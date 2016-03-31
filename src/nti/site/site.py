@@ -12,12 +12,13 @@ logger = __import__('logging').getLogger(__name__)
 from zope import component
 
 from zope.component.hooks import getSite
+
 from zope.component.interfaces import IComponents
 
 from persistent import Persistent
 
-from .transient import TrivialSite
-from .transient import HostSiteManager
+from nti.site.transient import TrivialSite
+from nti.site.transient import HostSiteManager
 
 def find_site_components(site_names):
 	"""
@@ -114,11 +115,13 @@ def get_component_hierarchy(site=None):
 		except (AttributeError):
 			resource = None
 
-def get_component_hierarchy_names(site=None):
+def get_component_hierarchy_names(site=None, reverse=False):
 	result = []
 	for resource in get_component_hierarchy(site):
 		result.append(resource.__name__)
-	return result
+	if reverse:
+		result.reverse()
+	return tuple(result)
 
 # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.
