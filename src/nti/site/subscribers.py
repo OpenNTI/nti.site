@@ -43,6 +43,7 @@ from zope import component
 
 from zope.component.hooks import getSite
 from zope.component.hooks import setSite
+
 from zope.component.interfaces import ISite
 
 from zope.location.interfaces import LocationError

@@ -121,7 +121,7 @@ def get_component_hierarchy_names(site=None, reverse=False):
 		result.append(resource.__name__)
 	if reverse:
 		result.reverse()
-	return tuple(result)
+	return result
 
 # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.

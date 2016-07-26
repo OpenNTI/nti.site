@@ -19,11 +19,12 @@ from zope.component.hooks import site as current_site
 
 from ZODB.interfaces import IDatabase
 
-from .interfaces import SiteNotInstalledError
-from .interfaces import ITransactionSiteNames
-from .interfaces import ISiteTransactionRunner
+from nti.site.interfaces import SiteNotInstalledError
 
-from .site import get_site_for_site_names
+from nti.site.interfaces import ITransactionSiteNames
+from nti.site.interfaces import ISiteTransactionRunner
+
+from nti.site.site import get_site_for_site_names
 
 @contextlib.contextmanager
 def _connection_cm():
