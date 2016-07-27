@@ -13,16 +13,11 @@ import warnings
 
 from zope import interface
 
-from zope.component.persistentregistry import PersistentAdapterRegistry as _ZPersistentAdapterRegistry
-
 from zope.site.folder import Folder
 
 from zope.site.site import LocalSiteManager as _ZLocalSiteManager
 
 from ZODB.POSException import ConnectionStateError
-
-from BTrees.OIBTree import OIBTree
-from BTrees.OOBTree import OOBTree
 
 from nti.site.interfaces import IHostSitesFolder
 from nti.site.interfaces import IHostPolicyFolder
@@ -75,25 +70,9 @@ except ImportError:
 	warnings.warn("Internals for zope.interface.registry changed")
 	_subscribed_registration = False
 
-class PersistentAdapterRegistry(_ZPersistentAdapterRegistry):
-	
-	def __init__(self, bases=()):
-		_ZPersistentAdapterRegistry.__init__(self, bases)
-		# Override set with a reference count, keeping track of the interfaces
-		# for which we have provided components:
-		self._provided = OIBTree()
 
 @interface.implementer(IHostPolicySiteManager)
 class HostPolicySiteManager(_ZLocalSiteManager):
-
-	def _init_registrations(self):
-		_ZLocalSiteManager._init_registrations(self)
-		self._utility_registrations = OOBTree()
-		self._adapter_registrations = OOBTree()
-
-	def _init_registries(self):
-		self.adapters = PersistentAdapterRegistry()
-		self.utilities = PersistentAdapterRegistry()
 
 	def __repr__(self):
 		try:
@@ -164,7 +143,7 @@ class HostPolicySiteManager(_ZLocalSiteManager):
 		else:
 			if (old is None) or ((component is not None) and (component != old[0])):
 				return False
-	
+
 			if component is None:
 				component = old[0]
 
