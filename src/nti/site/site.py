@@ -21,107 +21,107 @@ from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
 
 def find_site_components(site_names):
-	"""
-	Return an IComponents implementation named for the first virtual site
-	found in the sequence of site_names. If no such components can be found,
-	returns none.
-	"""
-	for site_name in site_names:
-		if not site_name:  # Empty/default. We want the global. This should only ever be at the end
-			return None
-		components = component.queryUtility(IComponents, name=site_name)
-		if components is not None:
-			return components
+        """
+        Return an IComponents implementation named for the first virtual site
+        found in the sequence of site_names. If no such components can be found,
+        returns none.
+        """
+        for site_name in site_names:
+                if not site_name:  # Empty/default. We want the global. This should only ever be at the end
+                        return None
+                components = component.queryUtility(IComponents, name=site_name)
+                if components is not None:
+                        return components
 _find_site_components = find_site_components  # BWC
 
 def get_site_for_site_names(site_names, site=None):
-	"""
-	Return an :class:`ISite` implementation named for the first virtual site
-	found in the sequence of site_names. If no such site can be found,
-	returns the fallback site.
+        """
+        Return an :class:`ISite` implementation named for the first virtual site
+        found in the sequence of site_names. If no such site can be found,
+        returns the fallback site.
 
-	Provisional API, public for testing purposes only.
+        Provisional API, public for testing purposes only.
 
-	:param site_names: Sequence of strings giving the virtual host names
-		to use.
-	:keyword site: If given, this will be the fallback site (and site manager). If
-		not given, then the currently installed site will be used.
-	"""
+        :param site_names: Sequence of strings giving the virtual host names
+                to use.
+        :keyword site: If given, this will be the fallback site (and site manager). If
+                not given, then the currently installed site will be used.
+        """
 
-	if site is None:
-		site = getSite()
+        if site is None:
+                site = getSite()
 
-	# assert site.getSiteManager().__bases__ == (component.getGlobalSiteManager(),)
-	# Can we find a named site to use?
-	site_components = _find_site_components(site_names) if site_names else None  # micro-opt to not call if no names
-	if site_components:
-		# Yes we can.
-		site_name = site_components.__name__
-		# Do we have a persistent site installed in the database? If yes,
-		# we want to use that.
-		try:
-			pers_site = site['++etc++hostsites'][site_name]
-			site = pers_site
-		except (KeyError, TypeError):
-			# No, nothing persistent, dummy one up.
-			# Note that this code path is deprecated now and not
-			# expected to be hit.
+        # assert site.getSiteManager().__bases__ == (component.getGlobalSiteManager(),)
+        # Can we find a named site to use?
+        site_components = _find_site_components(site_names) if site_names else None  # micro-opt to not call if no names
+        if site_components:
+                # Yes we can.
+                site_name = site_components.__name__
+                # Do we have a persistent site installed in the database? If yes,
+                # we want to use that.
+                try:
+                        pers_site = site['++etc++hostsites'][site_name]
+                        site = pers_site
+                except (KeyError, TypeError):
+                        # No, nothing persistent, dummy one up.
+                        # Note that this code path is deprecated now and not
+                        # expected to be hit.
 
-			# The site components are only a
-			# partial configuration and are not persistent, so we need
-			# to use two bases to make it work (order matters) (for
-			# example, the main site is almost always the
-			# 'nti.dataserver' site, where the persistent intid
-			# utilities live; the named sites do not have those and
-			# cannot have the persistent nti.dataserver as their real
-			# base, so the two must be mixed). They are also not
-			# traversable.
+                        # The site components are only a
+                        # partial configuration and are not persistent, so we need
+                        # to use two bases to make it work (order matters) (for
+                        # example, the main site is almost always the
+                        # 'nti.dataserver' site, where the persistent intid
+                        # utilities live; the named sites do not have those and
+                        # cannot have the persistent nti.dataserver as their real
+                        # base, so the two must be mixed). They are also not
+                        # traversable.
 
-			# Host comps used to be simple, but now they may be hierarchacl
-			# assert site_components.__bases__ == (component.getGlobalSiteManager(),)
-			# gsm = site_components.__bases__[0]
-			# assert site_components.adapters.__bases__ == (gsm.adapters,)
+                        # Host comps used to be simple, but now they may be hierarchacl
+                        # assert site_components.__bases__ == (component.getGlobalSiteManager(),)
+                        # gsm = site_components.__bases__[0]
+                        # assert site_components.adapters.__bases__ == (gsm.adapters,)
 
-			# But the current site, when given, must always be the main
-			# dataserver site
-			assert isinstance(site, Persistent)
-			assert isinstance(site.getSiteManager(), Persistent)
+                        # But the current site, when given, must always be the main
+                        # dataserver site
+                        assert isinstance(site, Persistent)
+                        assert isinstance(site.getSiteManager(), Persistent)
 
-			main_site = site
-			site_manager = HostSiteManager(main_site.__parent__,
-											main_site.__name__,
-											site_components,
-											main_site.getSiteManager())
-			site = TrivialSite(site_manager)
-			site.__parent__ = main_site
-			site.__name__ = site_name
+                        main_site = site
+                        site_manager = HostSiteManager(main_site.__parent__,
+                                                                                        main_site.__name__,
+                                                                                        site_components,
+                                                                                        main_site.getSiteManager())
+                        site = TrivialSite(site_manager)
+                        site.__parent__ = main_site
+                        site.__name__ = site_name
 
-	return site
+        return site
 
 def get_component_hierarchy(site=None):
-	if site is None:
-		site = getSite()
-	hostsites = site.__parent__
-	site_names = (site.__name__,)
-	resource = _find_site_components(site_names)
-	while resource is not None:
-		try:
-			name = resource.__name__
-			if name in hostsites:
-				yield resource
-				resource = resource.__parent__
-			else:
-				resource = None
-		except (AttributeError):
-			resource = None
+        if site is None:
+                site = getSite()
+        hostsites = site.__parent__
+        site_names = (site.__name__,)
+        resource = _find_site_components(site_names)
+        while resource is not None:
+                try:
+                        name = resource.__name__
+                        if name in hostsites:
+                                yield resource
+                                resource = resource.__parent__
+                        else:
+                                resource = None
+                except (AttributeError):
+                        resource = None
 
 def get_component_hierarchy_names(site=None, reverse=False):
-	result = []
-	for resource in get_component_hierarchy(site):
-		result.append(resource.__name__)
-	if reverse:
-		result.reverse()
-	return result
+        result = []
+        for resource in get_component_hierarchy(site):
+                result.append(resource.__name__)
+        if reverse:
+                result.reverse()
+        return result
 
 # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.
@@ -143,13 +143,13 @@ def get_component_hierarchy_names(site=None, reverse=False):
 # JAM: 2012-09-03: With the database resharding, evaluating the need for this.
 # Disabling it.
 # for db_name, db in conn.db().databases.items():
-# 	__traceback_info__ = i, db_name, db, func
-# 	if db is None: # For compatibility with databases we no longer use
-# 		continue
-# 	c2 = conn.get_connection(db_name)
-# 	if c2 is conn:
-# 		continue
-# 	c2.newTransaction()
+#       __traceback_info__ = i, db_name, db, func
+#       if db is None: # For compatibility with databases we no longer use
+#               continue
+#       c2 = conn.get_connection(db_name)
+#       if c2 is conn:
+#               continue
+#       c2.newTransaction()
 
 # Now fire 'newTransaction' to the ISynchronizers, including the root connection
 # This may result in some redundant fires to sub-connections.
