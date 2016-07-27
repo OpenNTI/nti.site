@@ -1,28 +1,28 @@
 <!-- -*- mode: nxml -*- -->
-<configure      xmlns="http://namespaces.zope.org/zope"
-                        xmlns:i18n="http://namespaces.zope.org/i18n"
-                        xmlns:zcml="http://namespaces.zope.org/zcml">
+<configure  xmlns="http://namespaces.zope.org/zope"
+            xmlns:i18n="http://namespaces.zope.org/i18n"
+            xmlns:zcml="http://namespaces.zope.org/zcml">
 
-        <include package="zope.component" file="meta.zcml" />
-        <include package="zope.security" file="meta.zcml" />
-        <include package="zope.component" />
-        <include package="zope.security" />
-        
-        <include package="zope.site" />
-        <include package="zope.location" />
+    <include package="zope.component" file="meta.zcml" />
+    <include package="zope.security" file="meta.zcml" />
+    <include package="zope.component" />
+    <include package="zope.security" />
+    
+    <include package="zope.site" />
+    <include package="zope.location" />
 
-        <!--
-        Our own version of zope.site.threadSiteSubscriber
-        that is careful to preserve any of our non-persistent host-based
-        configuration needed.
+    <!--
+    Our own version of zope.site.threadSiteSubscriber
+    that is careful to preserve any of our non-persistent host-based
+    configuration needed.
 
-        The zope.site version is registered by zope.app.publication
-        -->
-        <subscriber handler=".subscribers.threadSiteSubscriber" />
+    The zope.site version is registered by zope.app.publication
+    -->
+    <subscriber handler=".subscribers.threadSiteSubscriber" />
 
-        <subscriber handler=".subscribers.new_local_site_dispatcher" />
+    <subscriber handler=".subscribers.new_local_site_dispatcher" />
 
-        <!-- Database transactions -->
-        <utility component=".runner.run_job_in_site" />
+    <!-- Database transactions -->
+    <utility component=".runner.run_job_in_site" />
 
 </configure>
