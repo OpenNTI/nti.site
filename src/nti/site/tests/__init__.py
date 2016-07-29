@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function, unicode_literals, absolute_import, division
-from nose2.tests._common import Conn
+
 __docformat__ = "restructuredtext en"
 
 # disable: accessing protected members, too many methods
@@ -10,14 +10,15 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import functools
 import transaction
 
 from zope import interface
 from zope import component
 from zope import lifecycleevent
 
-from zope.component.hooks import getSite
-from zope.component.hooks import setSite
+
+
 from zope.component.hooks import setHooks
 from zope.component.hooks import site as currentSite
 
@@ -35,16 +36,14 @@ import ZODB
 
 from ZODB.DemoStorage import DemoStorage
 
-from nti.site.hostpolicy import synchronize_host_policies
+
 
 from nti.site.folder import HostSitesFolder
 
 from nti.site.interfaces import IMainApplicationFolder
 
-from nti.site.site import _find_site_components
-from nti.site.site import get_site_for_site_names
 
-import nose.tools
+from nti.site.site import get_site_for_site_names
 
 from nti.testing.layers import find_test
 from nti.testing.layers import GCLayerMixin
@@ -176,6 +175,7 @@ def reset_db_caches(db=None):
 
 def _mock_ds_wrapper_for(func, db, teardown=None):
 
+    @functools.wraps(func)
     def f(*args):
         global current_mock_db
         current_mock_db = db
@@ -193,7 +193,7 @@ def _mock_ds_wrapper_for(func, db, teardown=None):
                 if teardown:
                     teardown()
 
-    return nose.tools.make_decorator(func)(f)
+    return f
 
 def WithMockDS(*args, **kwargs):
     teardown = lambda: None
@@ -206,6 +206,7 @@ def WithMockDS(*args, **kwargs):
 
 def WithMockDBTrans(func):
 
+    @functools.wraps(func)
     def with_mock_ds_trans(*args, **kwargs):
         global current_mock_db
         global current_transaction
@@ -219,7 +220,7 @@ def WithMockDBTrans(func):
             current_mock_db = None
             current_transaction = None
 
-    return nose.tools.make_decorator(func)(with_mock_ds_trans)
+    return with_mock_ds_trans
 
 class SharedConfiguringTestLayer(ZopeComponentLayer,
                                  GCLayerMixin,

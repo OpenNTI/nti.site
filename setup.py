@@ -11,9 +11,10 @@ entry_points = {
 TESTS_REQUIRE = [
     'fudge',
     'nose2[coverage_plugin]',
+    'nti.testing',
     'pyhamcrest',
+    'z3c.baseregistry',
     'zope.testrunner',
-    'nti.testing'
 ]
 
 def _read(fname):
