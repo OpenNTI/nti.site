@@ -67,7 +67,7 @@ def uninstall_utility_on_unregistration(utility_name, provided, event):
     child_component = local_site_manager[utility_name]
 
     looked_up = local_site_manager.getUtility(provided)
-    assert looked_up is child_component
+    assert looked_up is child_component, (looked_up, child_component)
 
     local_site_manager.unregisterUtility(child_component, provided=provided)
     del local_site_manager[utility_name]
@@ -124,5 +124,6 @@ def queryNextUtility(context, interface, default=None):
         result = all_utilities[next_]
         if result is context:
             # in the GSM, we're querying for the GSM utility?
-            result = default
+            # Terminate with default to avoid an infinite loop
+            result = default # pragma: no cover
     return result
