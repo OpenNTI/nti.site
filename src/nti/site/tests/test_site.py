@@ -15,6 +15,7 @@ from hamcrest import contains
 from hamcrest import assert_that
 from hamcrest import has_property
 from hamcrest import same_instance
+from hamcrest import none
 does_not = is_not
 
 import unittest
@@ -37,10 +38,20 @@ from z3c.baseregistry.baseregistry import BaseComponents
 from nti.site.interfaces import IHostPolicyFolder
 from nti.site.subscribers import threadSiteSubscriber
 from nti.site.transient import HostSiteManager as HSM
+from ..transient import TrivialSite
+from ..site import get_site_for_site_names
+from ..site import find_site_components
+from ..site import get_component_hierarchy
+from ..site import get_component_hierarchy_names
 
 from nti.site.tests import SharedConfiguringTestLayer
 
 from nti.testing.matchers import validly_provides
+from nti.testing.base import AbstractTestBase
+
+from persistent import Persistent
+
+import fudge
 
 class IMock(Interface):
     pass
@@ -124,3 +135,60 @@ class TestSiteSubscriber(unittest.TestCase):
 
             # ... which does not change the site
             assert_that(getSite(), is_(same_instance(new_site)))
+
+class TestGetSiteForSiteNames(AbstractTestBase):
+
+    @fudge.patch('nti.site.site.find_site_components')
+    def test_no_persistent_site(self, fake_find):
+        pers_comps = BaseComponents(BASE, 'persistent', (BASE,))
+        host_comps = BaseComponents(BASE, 'example.com', (BASE,))
+        host_sm = HSM('example.com', 'siteman', host_comps, pers_comps)
+        class PersistentTrivialSite(Persistent, TrivialSite):
+            pass
+        trivial_site = PersistentTrivialSite(host_sm)
+        fake_find.is_callable().returns(pers_comps)
+
+
+        x = get_site_for_site_names(('',), trivial_site)
+
+        assert_that(x, is_not(Persistent))
+        assert_that(x, is_(TrivialSite))
+        assert_that(x.__name__, is_(pers_comps.__name__))
+
+    def test_find_comps_empty(self):
+        assert_that(find_site_components(('',)),
+                    is_(none()))
+
+
+class TestGetComponentHierarchy(AbstractTestBase):
+
+    @fudge.patch('nti.site.site.find_site_components')
+    def test_get_component_hierarchy(self, fake_find):
+        # This is a lousy test, just testing what we already see done, not
+        # correct behaviour
+        pers_comps = BaseComponents(BASE, 'persistent', (BASE,))
+
+        class MockSite(object):
+            __parent__ = None
+            __name__ = None
+
+            def __init__(self):
+                self.__parent__ = {}
+
+        site_comps_1 = BaseComponents(pers_comps, '1', (pers_comps,))
+        site_comps_2 = BaseComponents(site_comps_1, '2', (site_comps_1,))
+
+        site = MockSite()
+        site.__parent__[site_comps_1.__name__] = site_comps_1
+        site.__parent__[site_comps_2.__name__] = site_comps_2
+
+        fake_find.is_callable().returns(site_comps_2)
+
+        x = list(get_component_hierarchy(site))
+        assert_that(x, is_([site_comps_2, site_comps_1]))
+
+        x = list(get_component_hierarchy_names(site))
+        assert_that(x, is_(['2', '1']))
+
+        x = list(get_component_hierarchy_names(site, reverse=True))
+        assert_that(x, is_(['1', '2']))
