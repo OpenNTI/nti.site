@@ -1,7 +1,7 @@
 import codecs
 from setuptools import setup, find_packages
 
-VERSION = '0.0.0'
+version = '0.0.0'
 
 entry_points = {
     'console_scripts': [
@@ -10,24 +10,24 @@ entry_points = {
 
 TESTS_REQUIRE = [
     'fudge',
-    'nose',
-    'nose-timer',
-    'nose-pudb',
-    'nose-progressive',
     'nose2[coverage_plugin]',
     'pyhamcrest',
-    'nti.nose_traceback_info',
+    'zope.testrunner',
     'nti.testing'
 ]
 
+def _read(fname):
+    with codecs.open(fname, encoding='utf-8') as f:
+        return f.read()
+
 setup(
     name='nti.site',
-    version=VERSION,
+    version=version,
     author='Jason Madden',
     author_email='jason@nextthought.com',
     description="NTI Site",
-    long_description=codecs.open('README.rst', encoding='utf-8').read(),
-    license='Proprietary',
+    long_description=_read('README.rst'),
+    license='Apache',
     keywords='Site management',
     classifiers=[
         'Intended Audience :: Developers',
@@ -51,7 +51,6 @@ setup(
         'zope.interface',
         'zope.location',
         'zope.proxy',
-        'zope.security',
         'zope.site',
         'zope.traversing',
         'nti.schema',
