@@ -204,20 +204,20 @@ class TestSiteSync(unittest.TestCase):
             # in that module, they fail to get reset.
             site.__init__(site.__parent__, name=site.__name__, bases=site.__bases__)
             BASE.registerUtility(site, name=site.__name__, provided=IComponents)
-        BASE.registerHandler(self._on_host_site, required=(IHostPolicySiteManager, INewLocalSite))
-        DEMO.registerUtility(ASync(), provided=ITestSiteSync)
         self._events = []
+        # NOTE: We can't use an instance method; under
+        # zope.testrunner, by the time tearDown is called, it's not
+        # equal to the value it has during setUp, so we can't
+        # unregister it!
+        self._event_handler = lambda *args: self._events.append(args)
+        BASE.registerHandler(self._event_handler, required=(IHostPolicySiteManager, INewLocalSite))
+        DEMO.registerUtility(ASync(), provided=ITestSiteSync)
 
     def tearDown(self):
         for site in _SITES:
             BASE.unregisterUtility(site, name=site.__name__, provided=IComponents)
-        BASE.unregisterHandler(self._on_host_site, required=(IHostPolicySiteManager, INewLocalSite))
+        BASE.unregisterHandler(self._event_handler, required=(IHostPolicySiteManager, INewLocalSite))
         super(TestSiteSync, self).tearDown()
-
-    def _on_host_site(self, *args):
-        # XXX: When we run with zope-testrunner, this is still a tuple;
-        # is it not running the setUp/tearDown methods correctly?
-        self._events.append(args)
 
     def test_simple_ro(self):
         # Check that resolution order is what we think. See

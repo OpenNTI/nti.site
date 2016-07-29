@@ -1,3 +1,11 @@
 include README.rst
 include LICENSE
 include CHANGES.rst
+include .coveragerc
+include AUTHORS
+include INSTALL
+include TODO
+include babel.cfg
+include nose2.cfg
+include tox.ini
+recursive-include src *.zcml
