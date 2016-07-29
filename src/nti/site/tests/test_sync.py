@@ -126,6 +126,8 @@ class TestSiteSubscriber(unittest.TestCase):
             # ...unless they are both HostPolicyFolders...
             interface.alsoProvides(new_site, IHostPolicyFolder)
             interface.alsoProvides(new_site2, IHostPolicyFolder)
+            repr(new_site) # coverage
+            str(new_site)
             threadSiteSubscriber(new_site2, None)
 
             # ... which does not change the site

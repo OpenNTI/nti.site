@@ -42,7 +42,7 @@ class HostPolicyFolder(Folder):
     Simple container implementation for the named host site.
     """
 
-    def __str__(self):
+    def __str__(self): # pragma: no cover
         return 'HostPolicyFolder(%s)' % self.__name__
 
     def __repr__(self):
