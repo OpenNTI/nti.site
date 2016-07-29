@@ -36,13 +36,6 @@ class HostSitesFolder(Folder):
         except ConnectionStateError:
             return object.__repr__(self)
 
-    def _delitemf(self, key):
-        l = self._BTreeContainer__len
-        item = self._SampleContainer__data[key]
-        del self._SampleContainer__data[key]
-        l.change(-1)
-        return item
-
 @interface.implementer(IHostPolicyFolder)
 class HostPolicyFolder(Folder):
     """
