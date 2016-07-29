@@ -83,7 +83,7 @@ class _ProxyTraversedSite(ProxyBase):
 
     @non_overridable
     def setSiteManager(self, new_man):
-        raise ValueError()
+        raise ValueError("Cannot set site manager on proxy")
 
 @component.adapter(ISite, IBeforeTraverseEvent)
 def threadSiteSubscriber(new_site, event):

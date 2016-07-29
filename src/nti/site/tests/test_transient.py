@@ -19,8 +19,6 @@ import unittest
 
 import pickle
 
-from zope.interface import Interface
-
 from zope.component import globalSiteManager as BASE
 
 from z3c.baseregistry.baseregistry import BaseComponents
