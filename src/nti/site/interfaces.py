@@ -40,7 +40,7 @@ class IHostPolicyFolder(IFolder):
     site, representing a policy for the host name. Persistent
     configuration related to that host should reside in this folder.
     """
-    
+
 class IHostPolicySiteManager(ILocalSiteManager):
     """
     A persistent local site manager that is tied to a site name. It should always
@@ -48,80 +48,80 @@ class IHostPolicySiteManager(ILocalSiteManager):
     :mod:`z3c.baseregistry` and the persistent main dataserver site manager,
     in that order. This should be the site manager for an :class:`IHostPolicyFolder`
     """
-    
+
     def subscribedRegisterUtility(component=None, provided=None, name='',
                                   info=u'', event=True, factory=None):
-        
+
         """
         Register a utility
-        
+
         :param factory
            Factory for the component to be registerd.
-        
+
         :param component
            The registered component
-        
+
         :param provided
            This is the interface provided by the utility.  If the
            component provides a single interface, then this
            argument is optional and the component-implemented
            interface will be used.
-        
+
         :param name
            The utility name.
-        
+
         :param info
            An object that can be converted to a string to provide
            information about the registration.
-        
+
         Only one of component and factory can be used.
         A Registered event is generated with an IUtilityRegistration.
-        
+
         This method method assumes the utlity is subscribed
     """
-    
+
     def subscribedUnregisterUtility(component=None, provided=None, name=u'',
                                     factory=None):
 
         """
         Unregister a utility
-        
+
         A boolean is returned indicating whether the registry was
         changed.  If the given component is None and there is no
         component registered, or if the given component is not
         None and is not registered, then the function returns
         False, otherwise it returns True.
-        
+
         This method method assumes the utlity is subscribed
-        
+
         factory
            Factory for the component to be unregisterd.
-        
+
         component
            The registered component The given component can be
            None, in which case any component registered to provide
            the given provided interface with the given name is
            unregistered.
-        
+
         provided
            This is the interface provided by the utility.  If the
            component is not None and provides a single interface,
            then this argument is optional and the
            component-implemented interface will be used.
-        
+
         name
            The utility name.
-        
+
         Only one of component and factory can be used.
         An UnRegistered event is generated with an IUtilityRegistration.
         """
-        
+
 class IHostSitesFolder(IFolder):
     """
     A container for the sites, each of which should be an
     :class:`IHostPolicyFolder`
     """
-    
+
     lastSynchronized = Number(title=u"The timestamp at which this object was last synchronized .",
                               default=0.0)
     lastSynchronized.setTaggedValue('_ext_excluded_out', True)
@@ -131,9 +131,9 @@ class ITransactionSiteNames(interface.Interface):
     An interface for a utility that return a list of the possible site names
     needed whenever transaction is run
     """
-    
-    def __call__(self, *args, **kwargs):
-        pass
+
+    def __call__(*args, **kwargs):
+        "Return the possible site names"
 
 class ISiteTransactionRunner(interface.Interface):
     """

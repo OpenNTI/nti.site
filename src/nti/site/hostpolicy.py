@@ -98,7 +98,7 @@ def synchronize_host_policies():
             if name.endswith('base') or name.startswith('base'):
                 # The GSM or the base global objects
                 # TODO: better way to do this...marker interface?
-                continue
+                continue # pragma: no cover
             if name in sites:
                 logger.debug("Host policy for %s already in place", name)
                 # Ok, we've already put one in for this level.
@@ -161,7 +161,7 @@ def get_all_host_sites():
                 # Ie., it's a real one we haven't seen before
                 ordered.append(base_site)
     return ordered
-    
+
 def run_job_in_all_host_sites(func):
     """
     While already operating inside of a transaction and the dataserver
@@ -186,10 +186,7 @@ def run_job_in_all_host_sites(func):
     results = list()
     ordered = get_all_host_sites()
     for site in ordered:
-        logger.debug('Running job %s in site %s', func, site.__name__)
-        with current_site(site):
-            result = func()
-            results.append((site, result))
+        results.append(run_job_in_host_site(site, func))
     return results
 
 def get_host_site(site, safe=False):
