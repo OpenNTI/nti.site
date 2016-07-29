@@ -204,23 +204,6 @@ def WithMockDS(*args, **kwargs):
         return _mock_ds_wrapper_for(func, db, teardown)
     return lambda func: _mock_ds_wrapper_for(func, db , teardown)
 
-def WithMockDBTrans(func):
-
-    @functools.wraps(func)
-    def with_mock_ds_trans(*args, **kwargs):
-        global current_mock_db
-        global current_transaction
-
-        db = ZODB.DB(DemoStorage(name='Users'))
-        current_mock_db = db
-        try:
-            with mock_db_trans(db):
-                func(*args, **kwargs)
-        finally:
-            current_mock_db = None
-            current_transaction = None
-
-    return with_mock_ds_trans
 
 class SharedConfiguringTestLayer(ZopeComponentLayer,
                                  GCLayerMixin,
