@@ -9,8 +9,6 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
-import warnings
-
 from zope import interface
 
 from zope.site.folder import Folder
