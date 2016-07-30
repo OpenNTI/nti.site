@@ -126,6 +126,99 @@ def get_component_hierarchy_names(site=None, reverse=False):
         result.reverse()
     return result
 
+from zope.component.persistentregistry import PersistentComponents
+from zope.site.site import LocalSiteManager
+from zope.site.site import _LocalAdapterRegistry
+from BTrees import family64
+
+
+class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
+    """
+    A persistent adapter registry that can switch its internal
+    data structures to be more persistent friendly when they get large.
+    """
+
+    # Interestingly, we are totally fine to switch out the type from dict
+    # to BTree. Much of the actual lookup code is implemented in C, but it calls
+    # into Python for _uncached_lookup, which stays in pure python.
+
+    btree_family = family64
+    btree_provided_threshold = 5000
+    # The map threshold is lower than the provided threshold because it is
+    # there are many keys in the map so the overall effect is amplified.
+    btree_map_threshold = 2000
+
+    def _check_and_btree_maps(self, byorder):
+        btree_type = self.btree_family.OO.BTree
+        for i in range(len(byorder)):
+            mapping = byorder[i]
+            if not isinstance(mapping, btree_type) and len(mapping) > self.btree_map_threshold:
+                mapping = btree_type(mapping)
+                byorder[i] = mapping
+                self._p_changed = True
+
+            # This is the first level of the decision tree, and thus
+            # the least discriminatory. If i is 0, then this is only
+            # things that are specifically providing a single interface
+            # (Which is the most common in some usages). These maps are thus
+            # liable to get to be the biggest. Note that we only replace at this
+            # level.
+            replacement_vals = {k: btree_type(v)
+                                for k, v in mapping.items()
+                                if not isinstance(v, btree_type) and len(v) > self.btree_map_threshold}
+            if replacement_vals:
+                mapping.update(replacement_vals)
+                self._p_changed = True
+
+    def changed(self, originally_changed):
+        # If we changed, check and migrate
+        if originally_changed is self:
+            if len(self._provided) > self.btree_provided_threshold:
+                self._provided = self.btree_family.OI.BTree(self._provided)
+                self._p_changed = True
+            for byorder in self._adapters, self._subscribers:
+                self._check_and_btree_maps(byorder)
+        super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
+
+class BTreePersistentComponents(PersistentComponents):
+    """
+    Persistent components that will be friendly to ZODB when they get large.
+    """
+
+    btree_family = family64
+    btree_threshold = 5000
+
+    def _init_registries(self):
+        self.adapters = BTreeLocalAdapterRegistry()
+        self.utilities = BTreeLocalAdapterRegistry()
+        self.adapters.__parent__ = self.utilities.__parent__ = self
+        self.adapters.__name__ = u'adapters'
+        self.utilities.__name__ = u'utilities'
+
+    def _check_and_btree_map(self, mapping_name):
+        btree_type = self.btree_family.OO.BTree
+        mapping = getattr(self, mapping_name)
+        if not isinstance(mapping, btree_type) and len(mapping) > self.btree_threshold:
+            mapping = btree_type(mapping)
+            setattr(self, mapping_name, mapping)
+            self._p_changed = True
+
+    def registerUtility(self, *args, **kwargs):
+        result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
+        self._check_and_btree_map('_utility_registrations')
+        return result
+
+    def registerAdapter(self, *args, **kwargs):
+        result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        self._check_and_btree_map('_adapter_registrations')
+        return result
+
+class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
+    """
+    Persistent local site manager that will be friendly to ZODB when they
+    get large.
+    """
+
 # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.
 # Ultimately this results in newTransaction being called on the connection object
