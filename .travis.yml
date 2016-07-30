@@ -2,8 +2,8 @@ language: python
 sudo: false
 python:
   - 2.7
-#  - 3.4
-#  - 3.5
+  - 3.4
+  - 3.5
   - pypy
 script:
   - coverage run `which zope-testrunner` --test-path=src  --auto-color --auto-progress

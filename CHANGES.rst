@@ -6,6 +6,7 @@
 ==================
 
 - First PyPI release.
+- Add support for Python 3.
 - Remove HostPolicySiteManager.subscribedRegisterUtility and
   subscribeUnregisterUtility. See :issue:`5`. This may be a small
   performance regression in large sites. If so we'll find a different
