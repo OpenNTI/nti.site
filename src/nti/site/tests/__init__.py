@@ -36,8 +36,6 @@ import ZODB
 
 from ZODB.DemoStorage import DemoStorage
 
-
-
 from nti.site.folder import HostSitesFolder
 
 from nti.site.interfaces import IMainApplicationFolder
@@ -59,6 +57,8 @@ root_name = 'nti.dataserver'
 
 def install_sites_folder(server_folder):
     sites = HostSitesFolder()
+    str(sites) # coverage
+    repr(sites) # coverage
     server_folder['++etc++hostsites'] = sites
     lsm = server_folder.getSiteManager()
     lsm.registerUtility(sites, provided=IEtcNamespace, name='hostsites')

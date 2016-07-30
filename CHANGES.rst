@@ -6,3 +6,8 @@
 ==================
 
 - First PyPI release.
+- Remove HostPolicySiteManager.subscribedRegisterUtility and
+  subscribeUnregisterUtility. See :issue:`5`. This may be a small
+  performance regression in large sites. If so we'll find a different
+  way to deal with it.
+- Remove HostSitesFolder._delitemf. It was unused and buggy.

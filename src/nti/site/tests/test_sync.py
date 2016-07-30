@@ -126,6 +126,8 @@ class TestSiteSubscriber(unittest.TestCase):
             # ...unless they are both HostPolicyFolders...
             interface.alsoProvides(new_site, IHostPolicyFolder)
             interface.alsoProvides(new_site2, IHostPolicyFolder)
+            repr(new_site) # coverage
+            str(new_site)
             threadSiteSubscriber(new_site2, None)
 
             # ... which does not change the site
@@ -169,6 +171,7 @@ from nti.site.interfaces import IHostPolicySiteManager
 
 from nti.site.hostpolicy import synchronize_host_policies
 from nti.site.hostpolicy import run_job_in_all_host_sites
+from nti.site.hostpolicy import get_host_site
 
 from nti.site.site import _find_site_components
 from nti.site.site import get_site_for_site_names
@@ -265,6 +268,12 @@ class TestSiteSync(unittest.TestCase):
             # These were put in in order
             # assert_that( self._events[0][0].__parent__,
             #            has_property('__name__', EVAL.__name__))
+
+            # XXX These two lines are cover only.
+            get_host_site(DEMO.__name__)
+            get_host_site('DNE', True)
+            assert_that(calling(get_host_site).with_args('dne'),
+                        raises(LookupError))
 
         with mock_db_trans() as conn:
             for site in _SITES:

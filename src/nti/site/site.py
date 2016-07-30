@@ -53,7 +53,7 @@ def get_site_for_site_names(site_names, site=None):
 
     # assert site.getSiteManager().__bases__ == (component.getGlobalSiteManager(),)
     # Can we find a named site to use?
-    site_components = _find_site_components(site_names) if site_names else None  # micro-opt to not call if no names
+    site_components = find_site_components(site_names) if site_names else None  # micro-opt to not call if no names
     if site_components:
         # Yes we can.
         site_name = site_components.__name__
@@ -99,26 +99,29 @@ def get_site_for_site_names(site_names, site=None):
     return site
 
 def get_component_hierarchy(site=None):
-    if site is None:
-        site = getSite()
+    site = getSite() if site is None else site
+    # XXX: This is tightly coupled. Note that we assume that the parent
+    # site is a container for the persistent sites.
+    # There should never be a good reason to need to know this.
     hostsites = site.__parent__
     site_names = (site.__name__,)
-    resource = _find_site_components(site_names)
-    while resource is not None:
+    # XXX: Why is this not the same thing as site.getSiteManager()?
+    components = find_site_components(site_names)
+    while components is not None:
         try:
-            name = resource.__name__
+            name = components.__name__
             if name in hostsites:
-                yield resource
-                resource = resource.__parent__
+                yield components
+                components = components.__parent__
             else:
-                resource = None
-        except (AttributeError):
-            resource = None
+                break
+        except AttributeError:  # pragma: no cover
+            break
 
 def get_component_hierarchy_names(site=None, reverse=False):
-    result = []
-    for resource in get_component_hierarchy(site):
-        result.append(resource.__name__)
+    # XXX This is tightly coupled and there should almost never
+    # be a good reason to know this.
+    result = [x.__name__ for x in get_component_hierarchy(site)]
     if reverse:
         result.reverse()
     return result

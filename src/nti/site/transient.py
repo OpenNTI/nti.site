@@ -71,10 +71,10 @@ class BasedSiteManager(_ZLocalSiteManager):
         return None  # We won't be used as a folder
 
     def __reduce__(self):
-        raise TypeError("Should not be pickled")
+        raise TypeError("BasedSiteManager should not be pickled")
 
-    def __getstate__(self):
-        raise TypeError("Should not be pickled")
+    __getstate__ = __reduce__
+
 
 class HostSiteManager(BasedSiteManager):
     """
@@ -108,4 +108,4 @@ class TrivialSite(_ZContained):
         return self._sm
 
     def __reduce__(self):
-        raise TypeError("Should not be pickled")
+        raise TypeError("TrivialSite should not be pickled")

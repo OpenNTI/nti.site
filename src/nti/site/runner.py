@@ -41,7 +41,7 @@ def _connection_cm():
         conn.close()
 
 @contextlib.contextmanager
-def _site_cm(conn, site_names=()):
+def _site_cm(conn, site_names=(), root_folder_name='nti.dataserver'):
     # If we don't sync, then we can get stale objects that
     # think they belong to a closed connection
     # TODO: Are we doing something in the wrong order? Connection
@@ -51,15 +51,15 @@ def _site_cm(conn, site_names=()):
     # conn.sync()
     # In fact, it must go away; if we sync the conn, we lose the
     # current transaction
-    sitemanc = conn.root()['nti.dataserver']  # XXX coupling
+    sitemanc = conn.root()[root_folder_name]
     # Put into a policy if need be
-    sitemanc = get_site_for_site_names(site_names, site=sitemanc)
+    sitemanc = get_site_for_site_names(site_names, sitemanc)
 
     with current_site(sitemanc):
-        if component.getSiteManager() != sitemanc.getSiteManager():  # pragma: no cover
+        if component.getSiteManager() != sitemanc.getSiteManager():
             raise SiteNotInstalledError("Hooks not installed?")
         # XXX: Used to do this check...is it really needed?
-        # if component.getUtility( interfaces.IDataserver ) is None: # pragma: no cover
+        # if component.getUtility( interfaces.IDataserver ) is None:
         #   raise InappropriateSiteError()
         yield sitemanc
 
@@ -71,6 +71,7 @@ class _RunJobInSite(TransactionLoop):
         self.site_names = kwargs.pop('site_names')
         self.job_name = kwargs.pop('job_name')
         self.side_effect_free = kwargs.pop('side_effect_free')
+        self.root_folder_name = kwargs.pop('root_folder_name')
         super(_RunJobInSite, self).__init__(*args, **kwargs)
 
     def describe_transaction(self, *args, **kwargs):
@@ -86,7 +87,7 @@ class _RunJobInSite(TransactionLoop):
         return note
 
     def run_handler(self, conn, *args, **kwargs):
-        with _site_cm(conn, self.site_names):
+        with _site_cm(conn, self.site_names, self.root_folder_name):
             for c in conn.connections.values():
                 c.setDebugInfo(self.site_names)
             result = self.handler(*args, **kwargs)
@@ -123,7 +124,8 @@ def run_job_in_site(func,
                     sleep=None,
                     site_names=_marker,
                     job_name=None,
-                    side_effect_free=False):
+                    side_effect_free=False,
+                    root_folder_name='nti.dataserver'):
     """
     Runs the function given in `func` in a transaction and dataserver local
     site manager. See :class:`.ISiteTransactionRunner`
@@ -147,6 +149,7 @@ def run_job_in_site(func,
                           sleep=sleep,
                           site_names=site_names,
                           job_name=job_name,
-                          side_effect_free=side_effect_free)()
+                          side_effect_free=side_effect_free,
+                          root_folder_name=root_folder_name)()
 
 run_job_in_site.__doc__ = ISiteTransactionRunner['__call__'].getDoc()
