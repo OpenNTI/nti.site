@@ -322,14 +322,16 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base.registerAdapter(_foo_factory,
                                  required=(object,),
                                  provided=IFoo)
+        provided1 = new_base.adapters._provided
         new_base.registerAdapter(_foo_factory2,
                                  required=(IFoo,),
                                  provided=IMock)
+        provided2 = new_base.adapters._provided
         assert_that(new_base._adapter_registrations, is_(BTrees.OOBTree.OOBTree))
         assert_that(new_base.adapters._provided, is_(BTrees.family64.OI.BTree))
         assert_that(new_base.adapters._adapters[0], is_({}))
         assert_that(new_base.adapters._adapters[1][IFoo], is_(BTrees.family64.OO.BTree))
-
+        assert_that(provided1, is_(same_instance(provided2)))
 
         transaction.commit()
         conn.close()

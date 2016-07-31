@@ -193,7 +193,8 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     def changed(self, originally_changed):
         # If we changed, check and migrate
         if originally_changed is self:
-            if len(self._provided) > self.btree_provided_threshold:
+            if (not isinstance(self._provided, self.btree_family.OI.BTree)
+                and len(self._provided) > self.btree_provided_threshold):
                 self._provided = self.btree_family.OI.BTree(self._provided)
                 self._p_changed = True
             for byorder in self._adapters, self._subscribers:
