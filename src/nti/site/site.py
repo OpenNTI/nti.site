@@ -210,10 +210,10 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
 
             if replacement_vals:
                 mapping.update(replacement_vals)
-                # This is a btree now, so there's no need to mark
-                # self as _p_changed when we change it.
-                assert isinstance(mapping, btree_type)
-
+                if not isinstance(mapping, btree_type):
+                    # This may or may not be a btree, depending on its own size,
+                    # so we may need to mark ourself as changed.
+                    self._p_changed = True
 
     def register(self, required, provided, name, value):
         """

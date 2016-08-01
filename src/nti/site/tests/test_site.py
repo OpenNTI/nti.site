@@ -328,7 +328,7 @@ class TestBTreeSiteMan(AbstractTestBase):
 
 
         new_base.adapters.btree_provided_threshold = 0
-        new_base.adapters.btree_map_threshold = 0
+        new_base.adapters.btree_map_threshold = 1
         # Note: this causes btree-ing the map to fail. The implementedBy callable has default comparison
         # and can't be stored in a btree
         try:
@@ -350,8 +350,15 @@ class TestBTreeSiteMan(AbstractTestBase):
                     ))
         assert_that(new_base.adapters._provided, is_(BTrees.family64.OI.BTree))
         assert_that(new_base.adapters._adapters[0], is_({}))
-        assert_that(new_base.adapters._adapters[1][IFoo], is_(BTrees.family64.OO.BTree))
 
+        assert_that(new_base.adapters._adapters[1][IFoo], is_(dict))
+
+
+        new_base.registerAdapter(_foo_factory2,
+                                 required=(IFoo,),
+                                 provided=IFoo)
+
+        assert_that(new_base.adapters._adapters[1][IFoo], is_(BTrees.family64.OO.BTree))
 
         transaction.commit()
         conn.close()
