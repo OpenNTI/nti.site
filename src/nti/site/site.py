@@ -10,6 +10,10 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import sys
+from six import reraise
+
+from zope.interface.declarations import Implements
 from zope import component
 
 from zope.component.hooks import getSite
@@ -20,6 +24,12 @@ from persistent import Persistent
 
 from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
+
+_PYPY = hasattr(sys, 'pypy_version_info')
+if _PYPY:
+    _DEFAULT_COMPARISON = "Can't use default __cmp__"
+else:
+    _DEFAULT_COMPARISON = "Object has default comparison"
 
 def find_site_components(site_names):
     """
@@ -151,6 +161,10 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # there are many keys in the map so the overall effect is amplified.
     btree_map_threshold = 2000
 
+    # REMEMBER: Always check the type *before* checking the length.
+    # Getting the length of a bare BTree is expensive and loads all the
+    # buckets into memory.
+
     def _check_and_btree_maps(self, byorder):
         btree_type = self.btree_family.OO.BTree
         for i in range(len(byorder)):
@@ -166,7 +180,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
                     # but be safe and ignore it. Log it so we know if it does come up,
                     # and can work out a better plan to handle performance issues due to the
                     # failed conversion.
-                    logger.exception("Failed to convert registry to adapters")
+                    logger.exception("Failed to convert registry to BTree in %s", self.__name__)
                 else:
                     byorder[i] = mapping
                     self._p_changed = True
@@ -195,8 +209,13 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
         if originally_changed is self:
             if (not isinstance(self._provided, self.btree_family.OI.BTree)
                 and len(self._provided) > self.btree_provided_threshold):
-                self._provided = self.btree_family.OI.BTree(self._provided)
-                self._p_changed = True
+                try:
+                    self._provided = self.btree_family.OI.BTree(self._provided)
+                except TypeError:
+                    # See comments in _check_and_btree_map
+                    logger.exception("Failed to convert _provided to BTree in %s", self.__name__)
+                else:
+                    self._p_changed = True
             for byorder in self._adapters, self._subscribers:
                 self._check_and_btree_maps(byorder)
         super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
@@ -207,6 +226,20 @@ class BTreePersistentComponents(PersistentComponents):
 
     Note that despite the name, this class is not Persistent, only its
     internal components are.
+
+    .. caution:: Once the thresholds are reached and BTrees are being used,
+       it will not be possible to register any utilities that *provide* a class
+       (e.g., ``implementedBy(AClass)``) instead of on interface. A :exc:`TypeError`
+       will be raised. These can't (easily) be registered or queried for, though, so this should be
+       extremely rare.
+
+    .. note:: If any adapters are registered to *provide* a class instead of an interface,
+       BTree conversion will not be possible for some subset of the maps used.
+
+    .. note:: If any utilities have already been registered to *provide* a class
+       instead of an interface, BTree conversion will not be possible for some subset
+       of the maps used. These can't (easily) be registered or queried for, though, so this should be
+       extremely rare.
     """
 
     btree_family = family64
@@ -235,8 +268,27 @@ class BTreePersistentComponents(PersistentComponents):
             # NOTE: This class is *NOT* Persistent, but its subclass BTreeLocalSiteManager
             # *is*. That's why __setstate__ is there and not here...it doesn't make much sense here.
 
-    def registerUtility(self, *args, **kwargs):
-        result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
+    def registerUtility(self, component=None, provided=None, name=u'', info=u'',
+                        event=True, factory=None):
+        try:
+            result = super(BTreePersistentComponents, self).registerUtility(
+                component, provided, name, info, event, factory)
+        except TypeError as e:
+            exc_info = sys.exc_info()
+            if e.args[0] == _DEFAULT_COMPARISON:
+                # Back out our partial state changes
+                assert isinstance(provided, Implements) or provided is None
+                try:
+                    self.unregisterUtility(component, provided, name, factory)
+                    # On CPython, this fails with the same TypeError (which is expected)
+                    # But on PyPy (pure-python) this actually succeeds
+                except TypeError as e2:
+                    assert e2.args[0] == _DEFAULT_COMPARISON
+
+            try:
+                reraise(*exc_info)
+            finally:
+                del exc_info
         self._check_and_btree_map('_utility_registrations')
 
         return result
