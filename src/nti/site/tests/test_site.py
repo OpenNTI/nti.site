@@ -23,6 +23,7 @@ import unittest
 from zope import interface
 
 from zope.interface import ro
+from zope.interface import implementedBy
 from zope.interface import Interface
 
 from zope.component.hooks import getSite
@@ -47,6 +48,7 @@ from ..site import get_component_hierarchy_names
 from nti.site.tests import SharedConfiguringTestLayer
 
 from nti.testing.matchers import validly_provides
+from nti.testing.matchers import is_false
 from nti.testing.base import AbstractTestBase
 
 from persistent import Persistent
@@ -69,6 +71,10 @@ class MockSite(object):
         return self.site_man
 
 class IFoo(Interface):
+    pass
+
+@interface.implementer(IFoo)
+class RootFoo(object):
     pass
 
 class TestSiteSubscriber(unittest.TestCase):
@@ -192,3 +198,300 @@ class TestGetComponentHierarchy(AbstractTestBase):
 
         x = list(get_component_hierarchy_names(site, reverse=True))
         assert_that(x, is_(['1', '2']))
+
+from ..site import BTreeLocalSiteManager as BLSM
+from ..site import _LocalAdapterRegistry
+from ..site import BTreeLocalAdapterRegistry
+from ..site import WrongRegistrationTypeError
+
+from ZODB import DB
+from ZODB.DemoStorage import DemoStorage
+import transaction
+
+import pickle
+try:
+    import zodbpickle.fastpickle as zpickle
+except ImportError:
+    import zodbpickle.pickle as zpickle # pypy
+import BTrees.OOBTree
+
+class TestBTreeSiteMan(AbstractTestBase):
+
+
+    def test_pickle_setstate_swap_class(self):
+        base_comps = BLSM(None)
+        # replace with "broken"
+        base_comps.adapters = _LocalAdapterRegistry()
+        base_comps.utilities = _LocalAdapterRegistry()
+
+        sub_comps = BLSM(None)
+        sub_comps.__bases__ = (base_comps,)
+
+        assert_that(sub_comps.adapters.__bases__, is_((base_comps.adapters,)))
+        assert_that(sub_comps.utilities.__bases__, is_((base_comps.utilities,)))
+
+        for p in pickle, zpickle:
+            new_base, new_sub = p.loads(p.dumps([base_comps, sub_comps]))
+
+            # Still in place
+            assert_that(new_sub.adapters.__bases__, is_((new_base.adapters,)))
+            assert_that(new_sub.utilities.__bases__, is_((new_base.utilities,)))
+
+            # And they changed type
+            assert_that(new_sub.adapters.__bases__[0], is_(BTreeLocalAdapterRegistry))
+            assert_that(new_sub.utilities.__bases__[0], is_(BTreeLocalAdapterRegistry))
+
+
+    def _store_base_subs_in_zodb(self, storage):
+        db = DB(storage)
+        conn = db.open()
+
+        base_comps = BLSM(None)
+        base_comps.btree_threshold = 0
+        base_comps.__name__ = u'base'
+        # replace with "broken"
+        base_comps.adapters = _LocalAdapterRegistry()
+        base_comps.utilities = _LocalAdapterRegistry()
+
+        sub_comps = BLSM(None)
+        sub_comps.__name__ = u'sub'
+        sub_comps.__bases__ = (base_comps,)
+
+        assert_that(sub_comps.adapters.__bases__, is_((base_comps.adapters,)))
+        assert_that(sub_comps.utilities.__bases__, is_((base_comps.utilities,)))
+        assert_that(sub_comps.utilities.__bases__[0], is_(_LocalAdapterRegistry))
+
+        conn.root()['base'] = base_comps
+        conn.root()['sub'] = sub_comps
+
+
+        transaction.commit()
+        conn.close()
+        db.close()
+
+    def test_pickle_setstate_swap_class_zodb(self):
+        storage = DemoStorage()
+
+        self._store_base_subs_in_zodb(storage)
+
+        db = DB(storage)
+        conn = db.open()
+        new_base = conn.root()['base']
+        new_base._p_activate()
+        new_sub = conn.root()['sub']
+
+        # Still in place
+        assert_that(new_sub.adapters.__bases__, is_((new_base.adapters,)))
+        assert_that(new_sub.utilities.__bases__, is_((new_base.utilities,)))
+
+        # And they changed type
+        assert_that(new_sub.adapters.__bases__[0], is_(BTreeLocalAdapterRegistry))
+        assert_that(new_sub.utilities.__bases__[0], is_(BTreeLocalAdapterRegistry))
+
+        # But p_changed wasn't set.
+        assert_that(new_sub.adapters.__bases__[0],
+                    has_property('_p_changed', is_false()))
+
+        transaction.commit()
+        conn.close()
+        db.close()
+
+        db = DB(storage)
+        conn = db.open()
+        new_sub = conn.root()['sub']
+        # Now, we didn't rewrite the reference so the type stayed the same
+        assert_that(type(new_sub.adapters.__bases__[0]), _LocalAdapterRegistry)
+        assert_that(new_sub.adapters.__bases__[0],
+                    has_property('_p_changed', is_false()))
+
+        # Loading the base changes the types
+        new_base = conn.root()['base']
+        assert_that(new_base.adapters, is_(BTreeLocalAdapterRegistry))
+        assert_that(new_base.adapters,
+                    same_instance(new_sub.adapters.__bases__[0]))
+        assert_that(new_sub.adapters.__bases__[0], is_(BTreeLocalAdapterRegistry))
+
+        assert_that(new_sub.adapters.__bases__[0],
+                    has_property('_p_changed', is_false()))
+
+    def test_pickle_zodb_lookup_adapter(self):
+        # Now, we can register a couple adapters in the base, save everything,
+        # and look it up in the sub (when the classes don't match)
+        storage = DemoStorage()
+        self._store_base_subs_in_zodb(storage)
+
+        db = DB(storage)
+        conn = db.open()
+        new_base = conn.root()['base']
+        new_base._p_activate()
+        new_sub = conn.root()['sub']
+
+
+        new_base.adapters.btree_provided_threshold = 0
+        new_base.adapters.btree_map_threshold = 0
+        # Note: this causes btree-ing the map to fail. The implementedBy callable has default comparison
+        # and can't be stored in a btree
+        try:
+            new_base.registerAdapter(_foo_factory,
+                                     required=(object,),
+                                     provided=IFoo)
+            self.fail("Should raise")
+        except WrongRegistrationTypeError:
+            pass
+
+        new_base.registerAdapter(_foo_factory2,
+                                 required=(IFoo,),
+                                 provided=IMock)
+
+        assert_that(new_base._adapter_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(new_base._adapter_registrations.keys(),
+                    contains(
+                        ((IFoo,), IMock, u''),
+                    ))
+        assert_that(new_base.adapters._provided, is_(BTrees.family64.OI.BTree))
+        assert_that(new_base.adapters._adapters[0], is_({}))
+        assert_that(new_base.adapters._adapters[1][IFoo], is_(BTrees.family64.OO.BTree))
+
+
+        transaction.commit()
+        conn.close()
+        db.close()
+
+        db = DB(storage)
+        conn = db.open()
+        new_sub = conn.root()['sub']
+
+        x = new_sub.queryAdapter(RootFoo(), IMock)
+        assert_that(x, is_(2))
+
+    def test_pickle_zodb_lookup_utility(self):
+        # Now, we can register a couple utilities in the base, save everything,
+        # and look it up in the sub (when the classes don't match)
+        storage = DemoStorage()
+        self._store_base_subs_in_zodb(storage)
+
+        db = DB(storage)
+        conn = db.open()
+        new_base = conn.root()['base']
+        new_base._p_activate()
+        new_sub = conn.root()['sub']
+
+
+        new_base.utilities.btree_provided_threshold = 0
+        new_base.utilities.btree_map_threshold = 0
+
+        new_base.registerUtility(MockSite(),
+                                 provided=IFoo)
+        provided1 = new_base.adapters._provided
+        try:
+            new_base.registerUtility(MockSite(),
+                                     provided=implementedBy(object),
+                                     name=u'foo')
+            self.fail("Should raise TypeError")
+        except WrongRegistrationTypeError:
+            # Once we've converted, we can't register implementedBy
+            # again.
+            pass
+
+        new_base.registerUtility(MockSite(),
+                                 provided=IMock,
+                                 name=u'foo')
+
+        provided2 = new_base.adapters._provided
+        # Make sure that it only converted once
+        assert_that(provided1, is_(same_instance(provided2)))
+        assert_that(new_base._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        print(dict(new_base._utility_registrations))
+        assert_that(new_base._utility_registrations.keys(),
+                    contains(
+                        ((IFoo, u'')),
+                        (IMock, u'foo'),
+                    ))
+        assert_that(new_base.utilities._provided, is_(BTrees.family64.OI.BTree))
+        assert_that(new_base.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+
+        assert_that(new_base.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+
+
+        transaction.commit()
+        conn.close()
+        db.close()
+
+        db = DB(storage)
+        conn = db.open()
+        new_sub = conn.root()['sub']
+
+        x = new_sub.queryUtility(IFoo)
+        assert_that(x, is_(MockSite))
+
+        x = new_sub.queryUtility(IMock, u'foo')
+        assert_that(x, is_(MockSite))
+
+
+    def test_convert_with_utility_registered_on_class(self):
+        comps = BLSM(None)
+
+        comps.utilities.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        assert_that(calling(comps.registerUtility).with_args(MockSite(),
+                              provided=implementedBy(object),
+                              name=u'foo'),
+                    raises(WrongRegistrationTypeError))
+
+    def test_convert_with_utility_no_provided(self):
+        comps = BLSM(None)
+
+        comps.utilities.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        class AUtility(object):
+            # Doesn't implement any interfaces
+            pass
+
+        # You can't easily register them this way anyway
+        assert_that(calling(comps.registerUtility).with_args(AUtility()),
+                    raises(TypeError, "The utility doesn't provide a single interface"))
+
+    def test_convert_with_utility_dynamic_provided(self):
+        comps = BLSM(None)
+
+        comps.btree_threshold = 0
+        comps.utilities.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        class AUtility(object):
+            # Doesn't implement any interfaces
+            pass
+
+        autility = AUtility()
+        interface.alsoProvides(autility, IFoo)
+        comps.registerUtility(autility)
+        assert_that(comps._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(comps._utility_registrations.keys(),
+                    contains(
+                        ((IFoo, u'')),
+                    ))
+        assert_that(comps.utilities._provided, is_(BTrees.family64.OI.BTree))
+        assert_that(comps.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+
+        assert_that(comps.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+
+    def test_convert_with_adapter_registered_on_class(self):
+        comps = BLSM(None)
+
+        comps.btree_threshold = 0
+        comps.adapters.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        assert_that(calling(comps.registerAdapter).with_args(
+                           _foo_factory,
+                           required=(object, str),
+                           provided=IFoo),
+                    raises(WrongRegistrationTypeError))
+
+
+def _foo_factory(o):
+    return 1
+def _foo_factory2(o):
+    return 2

@@ -3,12 +3,16 @@
 """
 .. $Id$
 """
+# NOTE: unicode_literals is NOT imported!!
+from __future__ import print_function, absolute_import, division
 
-from __future__ import print_function, unicode_literals, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import sys
+
+from zope.interface.interface import InterfaceClass
 from zope import component
 
 from zope.component.hooks import getSite
@@ -19,6 +23,9 @@ from persistent import Persistent
 
 from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
+
+_PYPY = hasattr(sys, 'pypy_version_info')
+_DEFAULT_COMPARISON = "Can't use default __cmp__" if _PYPY else "Object has default comparison"
 
 def find_site_components(site_names):
     """
@@ -60,7 +67,7 @@ def get_site_for_site_names(site_names, site=None):
         # Do we have a persistent site installed in the database? If yes,
         # we want to use that.
         try:
-            pers_site = site['++etc++hostsites'][site_name]
+            pers_site = site[u'++etc++hostsites'][site_name]
             site = pers_site
         except (KeyError, TypeError):
             # No, nothing persistent, dummy one up.
@@ -125,6 +132,206 @@ def get_component_hierarchy_names(site=None, reverse=False):
     if reverse:
         result.reverse()
     return result
+
+from zope.component.persistentregistry import PersistentComponents
+from zope.site.site import LocalSiteManager
+from zope.site.site import _LocalAdapterRegistry
+from BTrees import family64
+
+class WrongRegistrationTypeError(TypeError):
+    pass
+
+class _PermissiveOOBTree(family64.OO.BTree):
+
+    def get(self, key, default=None):
+        "Doesn't raise an error for getting something with default comparison."
+        try:
+            return super(_PermissiveOOBTree, self).get(key, default)
+        except TypeError as e:
+            if e.args[0] == _DEFAULT_COMPARISON:
+                return default
+            raise # pragma: no cover
+
+
+class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
+    """
+    A persistent adapter registry that can switch its internal
+    data structures to be more persistent friendly when they get large.
+
+    .. caution:: This registry doesn't support registrations on bare
+       classes. This is because the Implements and Provides objects
+       returned on bare classes do not support comparison or equality
+       and hence cannot be used in BTrees. (They only hash and compare
+       equal to *themselves*; within the same process this works out
+       because of aggressive caching on class objects.) Registering a utility
+       to provide a bare class is quite hard to do, in any case. Registering
+       adapters to require bare classes is easier but generally not a best practice.
+    """
+    # Inherit from _LocalAdapterRegistry for maximum compatibility...we are
+    # going to swizzle out classes. Also, it makes sure we are ILocation.
+
+    # Interestingly, we are totally fine to switch out the type from dict
+    # to BTree. Much of the actual lookup code is implemented in C, but it calls
+    # into Python for _uncached_lookup, which stays in pure python.
+
+    btree_family = family64
+    btree_oo_type = _PermissiveOOBTree
+    btree_provided_threshold = 5000
+    # The map threshold is lower than the provided threshold because it is
+    # there are many keys in the map so the overall effect is amplified.
+    btree_map_threshold = 2000
+
+    # REMEMBER: Always check the type *before* checking the length.
+    # Getting the length of a bare BTree is expensive and loads all the
+    # buckets into memory.
+
+    def _check_and_btree_maps(self, byorder):
+        btree_type = self.btree_oo_type
+        for i in range(len(byorder)):
+            mapping = byorder[i]
+            if not isinstance(mapping, btree_type) and len(mapping) > self.btree_map_threshold:
+                mapping = btree_type(mapping)
+                byorder[i] = mapping
+                # self._adapters and self._subscribers are both simply
+                # of type `list` (not persistent list) so when we make changes
+                # to them, we need to set self._p_changed
+                self._p_changed = True
+
+            # This is the first level of the decision tree, and thus
+            # the least discriminatory. If i is 0, then this is only
+            # things that are specifically providing a single interface
+            # (Which is the most common in some usages). These maps are thus
+            # liable to get to be the biggest. Note that we only replace at this
+            # level.
+            replacement_vals = {}
+            for k, v in mapping.items():
+                if not isinstance(v, btree_type) and len(v) > self.btree_map_threshold:
+                    replacement_vals[k] = btree_type(v)
+
+            if replacement_vals:
+                mapping.update(replacement_vals)
+                # This is a btree now, so there's no need to mark
+                # self as _p_changed when we change it.
+                assert isinstance(mapping, btree_type)
+
+
+    def register(self, required, provided, name, value):
+        """
+        Raises :exc:`WrongRegistrationTypeError` if *required* or
+        *provided* contains a bare class.
+        """
+        # Pre-check that there are no bad registrations.
+        for r in required:
+            if r is not None and not isinstance(r, InterfaceClass):
+                raise WrongRegistrationTypeError("Unsupported declaration type in required %s" % r)
+        if not isinstance(provided, InterfaceClass):
+            raise WrongRegistrationTypeError("Unsupported declaration type in provided %s" % provided)
+        return super(BTreeLocalAdapterRegistry, self).register(required, provided, name, value)
+
+    def changed(self, originally_changed):
+        # If we changed, check and migrate
+        if originally_changed is self:
+            if (not isinstance(self._provided, self.btree_family.OI.BTree)
+                and len(self._provided) > self.btree_provided_threshold):
+                self._provided = self.btree_family.OI.BTree(self._provided)
+                self._p_changed = True
+            for byorder in self._adapters, self._subscribers:
+                self._check_and_btree_maps(byorder)
+        super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
+
+class BTreePersistentComponents(PersistentComponents):
+    """
+    Persistent components that will be friendly to ZODB when they get large.
+
+    Note that despite the name, this class is not Persistent, only its
+    internal components are.
+
+    .. caution:: This registry doesn't support bare class registrations.
+       See :class:`BTreeLocalAdapterRegistry` for details.
+    """
+
+    btree_family = family64
+    btree_threshold = 5000
+
+    def _init_registries(self):
+        # NOTE: We cannot simply replace these two attributes at runtime
+        # or even in a migration (for example, to upgrade from one type to another type)
+        # and expect it to work. If we are the base of some other Components
+        # or SiteManager, then these attributes have been copied into the __bases__
+        # of *its* adapters and utilities. If we swap out our ivar, then the bases
+        # will be out of sync and lookup will be broken. (BTreeLocalSiteManager
+        # supposedly keeps track of its subs and so it *could* swap out all of them too.)
+        self.adapters = BTreeLocalAdapterRegistry()
+        self.utilities = BTreeLocalAdapterRegistry()
+        self.adapters.__parent__ = self.utilities.__parent__ = self
+        self.adapters.__name__ = u'adapters'
+        self.utilities.__name__ = u'utilities'
+
+    def _check_and_btree_map(self, mapping_name):
+        btree_type = self.btree_family.OO.BTree
+        mapping = getattr(self, mapping_name)
+        if not isinstance(mapping, btree_type) and len(mapping) > self.btree_threshold:
+            mapping = btree_type(mapping)
+            setattr(self, mapping_name, mapping)
+            # NOTE: This class is *NOT* Persistent, but its subclass BTreeLocalSiteManager
+            # *is*. That's why __setstate__ is there and not here...it doesn't make much sense here.
+
+    def registerUtility(self, component=None, provided=None, name=u'', info=u'',
+                        event=True, factory=None):
+        result = None
+        try:
+            result = super(BTreePersistentComponents, self).registerUtility(
+                component, provided, name, info, event, factory)
+        except WrongRegistrationTypeError:
+            # Back out our partial state changes
+            self.unregisterUtility(component, provided, name, factory)
+            raise
+        self._check_and_btree_map('_utility_registrations')
+
+        return result
+
+    def registerAdapter(self, *args, **kwargs):
+        result = None
+        try:
+            result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        except WrongRegistrationTypeError:
+            kwargs.pop('event', None)
+            self.unregisterAdapter(*args, **kwargs)
+            raise
+        self._check_and_btree_map('_adapter_registrations')
+        return result
+
+class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
+    """
+    Persistent local site manager that will be friendly to ZODB when they
+    get large.
+
+    .. caution:: This registry doesn't support bare class registrations.
+       See :class:`BTreeLocalAdapterRegistry` for details.
+    """
+
+    def __setstate__(self, state):
+        super(BTreeLocalSiteManager, self).__setstate__(state)
+        # Graceful migration from older versions of this class.
+        # See note in _init_registries for why we can't simply swap these to new
+        # ivars. Instead, we adjust their __class__. Note that we'll have to keep doing this
+        # forever or until we save a brand new copy of the object, because the class is stored
+        # as part of the pickle. Adjusting the class works because we know that the layout
+        # is exactly the same. Now, other objects could be awake and active and querying
+        # this object under its old class through their own __bases__, but that's ok:
+        # our behaviour modification only comes in at write time...which only happens
+        # through methods we expose, so we'll get a chance to swizzle the object out.
+        for reg in self.adapters, self.utilities:
+            if (not isinstance(reg, BTreeLocalAdapterRegistry)
+                and isinstance(reg, _LocalAdapterRegistry)):
+                # Only do this for classes we know about.
+                # Note: In Persistent 4.2.1, pure-python and C handle __class__ differently.
+                # Pure-python doesn't set _p_changed, but C does.
+                changed = reg._p_changed
+                reg.__class__ = BTreeLocalAdapterRegistry
+                if not changed:
+                    reg._p_changed = False
+
 
 # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.

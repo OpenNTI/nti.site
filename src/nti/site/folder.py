@@ -13,7 +13,7 @@ from zope import interface
 
 from zope.site.folder import Folder
 
-from zope.site.site import LocalSiteManager as _ZLocalSiteManager
+from .site import BTreeLocalSiteManager
 
 from ZODB.POSException import ConnectionStateError
 
@@ -47,7 +47,7 @@ class HostPolicyFolder(Folder):
         return 'HostPolicyFolder(%s,%s)' % (self.__name__, id(self))
 
 @interface.implementer(IHostPolicySiteManager)
-class HostPolicySiteManager(_ZLocalSiteManager):
+class HostPolicySiteManager(BTreeLocalSiteManager):
 
     def __repr__(self):
         try:

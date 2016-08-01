@@ -32,7 +32,7 @@ from zope.interface import Interface
 from zope import interface
 
 from zope.component.interfaces import ISite
-from zope.site import LocalSiteManager
+from ..site import BTreeLocalSiteManager as LocalSiteManager
 from zope.site import SiteManagerContainer
 from zope.container.contained import Contained
 from zope.location.interfaces import ILocationInfo

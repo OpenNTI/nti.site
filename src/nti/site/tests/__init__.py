@@ -24,7 +24,7 @@ from zope.component.hooks import site as currentSite
 
 from zope.component.interfaces import ISite
 
-from zope.site import LocalSiteManager
+from ..site import BTreeLocalSiteManager
 from zope.site import SiteManagerContainer
 
 from zope.site.folder import Folder
@@ -73,7 +73,7 @@ def install_main(conn):
     assert root_folder._p_jar is conn
 
     # The root is generally presumed to be an ISite, so make it so
-    root_sm = LocalSiteManager(root_folder)  # site is IRoot, so __base__ is the GSM
+    root_sm = BTreeLocalSiteManager(root_folder)  # site is IRoot, so __base__ is the GSM
     assert root_sm.__parent__ is root_folder
     assert root_sm.__bases__ == (component.getGlobalSiteManager(),)
     conn.add(root_sm)  # Ensure we have a connection so we can become KeyRefs
@@ -90,7 +90,7 @@ def install_main(conn):
     assert server_folder.__name__ == 'dataserver2'
     assert root_folder['dataserver2'] is server_folder
 
-    lsm = LocalSiteManager(server_folder)
+    lsm = BTreeLocalSiteManager(server_folder)
     conn.add(lsm)
     assert lsm.__parent__ is server_folder
     assert lsm.__bases__ == (root_sm,)
@@ -182,7 +182,7 @@ def _mock_ds_wrapper_for(func, db, teardown=None):
         init_db(db)
 
         sitemanc = SiteManagerContainer()
-        sitemanc.setSiteManager(LocalSiteManager(None))
+        sitemanc.setSiteManager(BTreeLocalSiteManager(None))
 
         with currentSite(sitemanc):
             assert component.getSiteManager() == sitemanc.getSiteManager()
@@ -219,9 +219,27 @@ class SharedConfiguringTestLayer(ZopeComponentLayer,
     def setUp(cls):
         setHooks()
         cls.setUpPackages()
+        # Force all the thresholds low so that we do as much testing as possible
+        # with btrees.
+        from ..site import BTreeLocalAdapterRegistry
+        from ..folder import HostPolicySiteManager
+        assert hasattr(HostPolicySiteManager, 'btree_threshold')
+        HostPolicySiteManager.btree_threshold = 0
+        assert hasattr(BTreeLocalAdapterRegistry, 'btree_provided_threshold')
+        assert hasattr(BTreeLocalAdapterRegistry, 'btree_map_threshold')
+        cls._orig_provided = BTreeLocalAdapterRegistry.btree_provided_threshold
+        cls._orig_map = BTreeLocalAdapterRegistry.btree_map_threshold
+        BTreeLocalAdapterRegistry.btree_provided_threshold = 0
+        BTreeLocalAdapterRegistry.btree_map_threshold = 0
 
     @classmethod
     def tearDown(cls):
+        from ..site import BTreeLocalAdapterRegistry
+        from ..folder import HostPolicySiteManager
+        del HostPolicySiteManager.btree_threshold
+        assert hasattr(HostPolicySiteManager, 'btree_threshold')
+        BTreeLocalAdapterRegistry.btree_provided_threshold = cls._orig_provided
+        BTreeLocalAdapterRegistry.btree_map_threshold = cls._orig_map
         cls.tearDownPackages()
         zope.testing.cleanup.cleanUp()
 
