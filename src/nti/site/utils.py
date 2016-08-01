@@ -12,8 +12,7 @@ logger = __import__('logging').getLogger(__name__)
 def registerUtility(registry, *args, **kwargs):
     return registry.registerUtility(*args, **kwargs)
 
-
 def unregisterUtility(registry, *args, **kwargs):
     kwargs.pop('force', None)
-    # force is ignored.
+    kwargs.pop('event', None)
     return registry.unregisterUtility(*args, **kwargs)
