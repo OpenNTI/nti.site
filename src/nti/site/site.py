@@ -180,6 +180,9 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
                     logger.exception("Failed to convert registry to BTree in %s", self.__name__)
                 else:
                     byorder[i] = mapping
+                    # self._adapters and self._subscribers are both simply
+                    # of type `list` (not persistent list) so when we make changes
+                    # to them, we need to set self._p_changed
                     self._p_changed = True
 
             # This is the first level of the decision tree, and thus
@@ -199,7 +202,8 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
 
             if replacement_vals:
                 mapping.update(replacement_vals)
-                self._p_changed = True
+                if not isinstance(mapping, btree_type):
+                    self._p_changed = True
 
     def changed(self, originally_changed):
         # If we changed, check and migrate
