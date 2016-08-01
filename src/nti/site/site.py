@@ -26,10 +26,7 @@ from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
 
 _PYPY = hasattr(sys, 'pypy_version_info')
-if _PYPY:
-    _DEFAULT_COMPARISON = "Can't use default __cmp__"
-else:
-    _DEFAULT_COMPARISON = "Object has default comparison"
+_DEFAULT_COMPARISON = "Can't use default __cmp__" if _PYPY else "Object has default comparison"
 
 def find_site_components(site_names):
     """
