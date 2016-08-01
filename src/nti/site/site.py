@@ -11,9 +11,8 @@ __docformat__ = "restructuredtext en"
 logger = __import__('logging').getLogger(__name__)
 
 import sys
-from six import reraise
 
-from zope.interface.declarations import Implements
+from zope.interface.interface import InterfaceClass
 from zope import component
 
 from zope.component.hooks import getSite
@@ -139,11 +138,34 @@ from zope.site.site import LocalSiteManager
 from zope.site.site import _LocalAdapterRegistry
 from BTrees import family64
 
+class WrongRegistrationTypeError(TypeError):
+    pass
+
+class _PermissiveOOBTree(family64.OO.BTree):
+
+    def get(self, key, default=None):
+        "Doesn't raise an error for getting something with default comparison."
+        try:
+            return super(_PermissiveOOBTree, self).get(key, default)
+        except TypeError as e:
+            if e.args[0] == _DEFAULT_COMPARISON:
+                return default
+            raise # pragma: no cover
+
 
 class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     """
     A persistent adapter registry that can switch its internal
     data structures to be more persistent friendly when they get large.
+
+    .. caution:: This registry doesn't support registrations on bare
+       classes. This is because the Implements and Provides objects
+       returned on bare classes do not support comparison or equality
+       and hence cannot be used in BTrees. (They only hash and compare
+       equal to *themselves*; within the same process this works out
+       because of aggressive caching on class objects.) Registering a utility
+       to provide a bare class is quite hard to do, in any case. Registering
+       adapters to require bare classes is easier but generally not a best practice.
     """
     # Inherit from _LocalAdapterRegistry for maximum compatibility...we are
     # going to swizzle out classes. Also, it makes sure we are ILocation.
@@ -153,6 +175,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # into Python for _uncached_lookup, which stays in pure python.
 
     btree_family = family64
+    btree_oo_type = _PermissiveOOBTree
     btree_provided_threshold = 5000
     # The map threshold is lower than the provided threshold because it is
     # there are many keys in the map so the overall effect is amplified.
@@ -163,27 +186,16 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # buckets into memory.
 
     def _check_and_btree_maps(self, byorder):
-        btree_type = self.btree_family.OO.BTree
+        btree_type = self.btree_oo_type
         for i in range(len(byorder)):
             mapping = byorder[i]
             if not isinstance(mapping, btree_type) and len(mapping) > self.btree_map_threshold:
-                try:
-                    mapping = btree_type(mapping)
-                except TypeError:
-                    # There must be something registered on a class
-                    # in this map: implementedBy has default comparison and can't
-                    # be stored in a btree. Checking data in the wild doesn't
-                    # show any such adapter registrations (most common place for them)
-                    # but be safe and ignore it. Log it so we know if it does come up,
-                    # and can work out a better plan to handle performance issues due to the
-                    # failed conversion.
-                    logger.exception("Failed to convert registry to BTree in %s", self.__name__)
-                else:
-                    byorder[i] = mapping
-                    # self._adapters and self._subscribers are both simply
-                    # of type `list` (not persistent list) so when we make changes
-                    # to them, we need to set self._p_changed
-                    self._p_changed = True
+                mapping = btree_type(mapping)
+                byorder[i] = mapping
+                # self._adapters and self._subscribers are both simply
+                # of type `list` (not persistent list) so when we make changes
+                # to them, we need to set self._p_changed
+                self._p_changed = True
 
             # This is the first level of the decision tree, and thus
             # the least discriminatory. If i is 0, then this is only
@@ -194,29 +206,33 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
             replacement_vals = {}
             for k, v in mapping.items():
                 if not isinstance(v, btree_type) and len(v) > self.btree_map_threshold:
-                    try:
-                        replacement_vals[k] = btree_type(v)
-                    except TypeError: # pragma: no cover
-                        # See above.
-                        logger.exception("Failed to convert nested registry to adapters")
+                    replacement_vals[k] = btree_type(v)
 
             if replacement_vals:
                 mapping.update(replacement_vals)
                 if not isinstance(mapping, btree_type):
                     self._p_changed = True
 
+    def register(self, required, provided, name, value):
+        """
+        Raises :exc:`WrongRegistrationTypeError` if *required* or
+        *provided* contains a bare class.
+        """
+        # Pre-check that there are no bad registrations.
+        for r in required:
+            if r is not None and not isinstance(r, InterfaceClass):
+                raise WrongRegistrationTypeError("Unsupported declaration type in required %s" % r)
+        if not isinstance(provided, InterfaceClass):
+            raise WrongRegistrationTypeError("Unsupported declaration type in provided %s" % provided)
+        return super(BTreeLocalAdapterRegistry, self).register(required, provided, name, value)
+
     def changed(self, originally_changed):
         # If we changed, check and migrate
         if originally_changed is self:
             if (not isinstance(self._provided, self.btree_family.OI.BTree)
                 and len(self._provided) > self.btree_provided_threshold):
-                try:
-                    self._provided = self.btree_family.OI.BTree(self._provided)
-                except TypeError:
-                    # See comments in _check_and_btree_map
-                    logger.exception("Failed to convert _provided to BTree in %s", self.__name__)
-                else:
-                    self._p_changed = True
+                self._provided = self.btree_family.OI.BTree(self._provided)
+                self._p_changed = True
             for byorder in self._adapters, self._subscribers:
                 self._check_and_btree_maps(byorder)
         super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
@@ -228,19 +244,8 @@ class BTreePersistentComponents(PersistentComponents):
     Note that despite the name, this class is not Persistent, only its
     internal components are.
 
-    .. caution:: Once the thresholds are reached and BTrees are being used,
-       it will not be possible to register any utilities that *provide* a class
-       (e.g., ``implementedBy(AClass)``) instead of on interface. A :exc:`TypeError`
-       will be raised. These can't (easily) be registered or queried for, though, so this should be
-       extremely rare.
-
-    .. note:: If any adapters are registered to *provide* a class instead of an interface,
-       BTree conversion will not be possible for some subset of the maps used.
-
-    .. note:: If any utilities have already been registered to *provide* a class
-       instead of an interface, BTree conversion will not be possible for some subset
-       of the maps used. These can't (easily) be registered or queried for, though, so this should be
-       extremely rare.
+    .. caution:: This registry doesn't support bare class registrations.
+       See :class:`BTreeLocalAdapterRegistry` for details.
     """
 
     btree_family = family64
@@ -271,31 +276,26 @@ class BTreePersistentComponents(PersistentComponents):
 
     def registerUtility(self, component=None, provided=None, name=u'', info=u'',
                         event=True, factory=None):
+        result = None
         try:
             result = super(BTreePersistentComponents, self).registerUtility(
                 component, provided, name, info, event, factory)
-        except TypeError as e:
-            exc_info = sys.exc_info()
-            if e.args[0] == _DEFAULT_COMPARISON:
-                # Back out our partial state changes
-                assert isinstance(provided, Implements) or provided is None
-                try:
-                    self.unregisterUtility(component, provided, name, factory)
-                    # On CPython, this fails with the same TypeError (which is expected)
-                    # But on PyPy (pure-python) this actually succeeds
-                except TypeError as e2:
-                    assert e2.args[0] == _DEFAULT_COMPARISON
-
-            try:
-                reraise(*exc_info)
-            finally:
-                del exc_info
+        except WrongRegistrationTypeError:
+            # Back out our partial state changes
+            self.unregisterUtility(component, provided, name, factory)
+            raise
         self._check_and_btree_map('_utility_registrations')
 
         return result
 
     def registerAdapter(self, *args, **kwargs):
-        result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        result = None
+        try:
+            result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        except WrongRegistrationTypeError:
+            kwargs.pop('event', None)
+            self.unregisterAdapter(*args, **kwargs)
+            raise
         self._check_and_btree_map('_adapter_registrations')
         return result
 
@@ -303,6 +303,9 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
     """
     Persistent local site manager that will be friendly to ZODB when they
     get large.
+
+    .. caution:: This registry doesn't support bare class registrations.
+       See :class:`BTreeLocalAdapterRegistry` for details.
     """
 
     def __setstate__(self, state):

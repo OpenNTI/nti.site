@@ -202,8 +202,7 @@ class TestGetComponentHierarchy(AbstractTestBase):
 from ..site import BTreeLocalSiteManager as BLSM
 from ..site import _LocalAdapterRegistry
 from ..site import BTreeLocalAdapterRegistry
-from ..site import _DEFAULT_COMPARISON
-import sys
+from ..site import WrongRegistrationTypeError
 
 from ZODB import DB
 from ZODB.DemoStorage import DemoStorage
@@ -331,25 +330,23 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base.adapters.btree_provided_threshold = 0
         new_base.adapters.btree_map_threshold = 0
         # Note: this causes btree-ing the map to fail. The implementedBy callable has default comparison
-        # and can't be stored in a btree. We handle that semi-gracefully now.
-        # TODO: How about performance? Does this ever come up in real life?
-        # Checking the data doesn't show that it does. (This part of the test could be
-        # separated out)
-        new_base.registerAdapter(_foo_factory,
-                                 required=(object,),
-                                 provided=IFoo)
-        provided1 = new_base.adapters._provided
+        # and can't be stored in a btree
+        try:
+            new_base.registerAdapter(_foo_factory,
+                                     required=(object,),
+                                     provided=IFoo)
+            self.fail("Should raise")
+        except WrongRegistrationTypeError:
+            pass
+
         new_base.registerAdapter(_foo_factory2,
                                  required=(IFoo,),
                                  provided=IMock)
-        provided2 = new_base.adapters._provided
-        # Make sure that it only converted once
-        assert_that(provided1, is_(same_instance(provided2)))
+
         assert_that(new_base._adapter_registrations, is_(BTrees.OOBTree.OOBTree))
         assert_that(new_base._adapter_registrations.keys(),
                     contains(
                         ((IFoo,), IMock, u''),
-                        ((implementedBy(object),), IFoo, u''),
                     ))
         assert_that(new_base.adapters._provided, is_(BTrees.family64.OI.BTree))
         assert_that(new_base.adapters._adapters[0], is_({}))
@@ -363,9 +360,6 @@ class TestBTreeSiteMan(AbstractTestBase):
         db = DB(storage)
         conn = db.open()
         new_sub = conn.root()['sub']
-
-        x = new_sub.queryAdapter(self, IFoo)
-        assert_that(x, is_(1))
 
         x = new_sub.queryAdapter(RootFoo(), IMock)
         assert_that(x, is_(2))
@@ -394,10 +388,10 @@ class TestBTreeSiteMan(AbstractTestBase):
                                      provided=implementedBy(object),
                                      name=u'foo')
             self.fail("Should raise TypeError")
-        except TypeError as e:
+        except WrongRegistrationTypeError:
             # Once we've converted, we can't register implementedBy
             # again.
-            assert_that(e.args[0], is_(_DEFAULT_COMPARISON))
+            pass
 
         new_base.registerUtility(MockSite(),
                                  provided=IMock,
@@ -407,6 +401,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         # Make sure that it only converted once
         assert_that(provided1, is_(same_instance(provided2)))
         assert_that(new_base._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        print(dict(new_base._utility_registrations))
         assert_that(new_base._utility_registrations.keys(),
                     contains(
                         ((IFoo, u'')),
@@ -439,21 +434,10 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.utilities.btree_provided_threshold = 0
         comps.utilities.btree_map_threshold = 0
 
-        comps.registerUtility(MockSite(),
+        assert_that(calling(comps.registerUtility).with_args(MockSite(),
                               provided=implementedBy(object),
-                              name=u'foo')
-        assert_that(comps.utilities._provided, is_(dict))
-
-        # But you can't easily query for these so it shouldn't
-        # matter.
-        x = comps.queryUtility(implementedBy(object), u'foo')
-        assert_that(x, is_(none()))
-        x = comps.queryUtility(object, u'foo')
-        assert_that(x, is_(none()))
-
-        x = comps.queryUtility(Interface, u'foo')
-        assert_that(x, is_(MockSite))
-
+                              name=u'foo'),
+                    raises(WrongRegistrationTypeError))
 
     def test_convert_with_utility_no_provided(self):
         comps = BLSM(None)
@@ -467,8 +451,44 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         # You can't easily register them this way anyway
         assert_that(calling(comps.registerUtility).with_args(AUtility()),
-        raises(TypeError, "The utility doesn't provide a single interface"))
+                    raises(TypeError, "The utility doesn't provide a single interface"))
 
+    def test_convert_with_utility_dynamic_provided(self):
+        comps = BLSM(None)
+
+        comps.btree_threshold = 0
+        comps.utilities.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        class AUtility(object):
+            # Doesn't implement any interfaces
+            pass
+
+        autility = AUtility()
+        interface.alsoProvides(autility, IFoo)
+        comps.registerUtility(autility)
+        assert_that(comps._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(comps._utility_registrations.keys(),
+                    contains(
+                        ((IFoo, u'')),
+                    ))
+        assert_that(comps.utilities._provided, is_(BTrees.family64.OI.BTree))
+        assert_that(comps.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+
+        assert_that(comps.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+
+    def test_convert_with_adapter_registered_on_class(self):
+        comps = BLSM(None)
+
+        comps.btree_threshold = 0
+        comps.adapters.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        assert_that(calling(comps.registerAdapter).with_args(
+                           _foo_factory,
+                           required=(object, str),
+                           provided=IFoo),
+                    raises(WrongRegistrationTypeError))
 
 
 def _foo_factory(o):
