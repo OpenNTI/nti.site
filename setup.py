@@ -1,7 +1,7 @@
 import codecs
 from setuptools import setup, find_packages
 
-version = '0.0.0'
+
 
 entry_points = {
     'console_scripts': [
@@ -23,7 +23,7 @@ def _read(fname):
 
 setup(
     name='nti.site',
-    version=version,
+    version=_read('version.txt').strip(),
     author='Jason Madden',
     author_email='jason@nextthought.com',
     description="NTI Site",
@@ -39,8 +39,8 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: Implementation :: CPython'
-        'Programming Language :: Python :: Implementation :: PyPy'
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
     ],
     packages=find_packages('src'),
     package_dir={'': 'src'},
@@ -65,5 +65,5 @@ setup(
     extras_require={
         'test': TESTS_REQUIRE,
     },
-    entry_points=entry_points
+    entry_points=entry_points,
 )
