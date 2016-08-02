@@ -42,6 +42,7 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
+    zip_safe=True,
     packages=find_packages('src'),
     package_dir={'': 'src'},
     include_package_data=True,
