@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.0.0 (unreleased)
+1.0.0 (2016-08-02)
 ==================
 
 - First PyPI release.
