@@ -408,7 +408,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         # Make sure that it only converted once
         assert_that(provided1, is_(same_instance(provided2)))
         assert_that(new_base._utility_registrations, is_(BTrees.OOBTree.OOBTree))
-        print(dict(new_base._utility_registrations))
+
         assert_that(new_base._utility_registrations.keys(),
                     contains(
                         ((IFoo, u'')),

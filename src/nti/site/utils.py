@@ -4,15 +4,20 @@
 .. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
-logger = __import__('logging').getLogger(__name__)
+import warnings
 
 def registerUtility(registry, *args, **kwargs):
     return registry.registerUtility(*args, **kwargs)
 
 def unregisterUtility(registry, *args, **kwargs):
-    kwargs.pop('force', None)
-    kwargs.pop('event', None)
+    for k in 'event', 'force':
+        if k in kwargs:
+            kwargs.pop(k, None)
+            warnings.warn(
+                "unregisterUtility does not take '%s'; it will be dropped soon" % k,
+                FutureWarning,
+                stacklevel=2)
     return registry.unregisterUtility(*args, **kwargs)
