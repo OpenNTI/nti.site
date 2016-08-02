@@ -8,4 +8,9 @@ include TODO
 include babel.cfg
 include nose2.cfg
 include tox.ini
+include *.txt
+recursive-include doc *.py
+recursive-include doc *.rst
+recursive-include doc Makefile
+recursive-exclude doc changelog.rst
 recursive-include src *.zcml

@@ -3,6 +3,8 @@
 """
 Support for host policies.
 
+This contains the main unique functionality for this package.
+
 .. $Id$
 """
 
@@ -32,9 +34,9 @@ from nti.site.interfaces import IMainApplicationFolder
 
 def synchronize_host_policies():
     """
-    Called within a transaction with a site being the current dataserver
+    Called within a transaction with a site being the current application
     site, find any :mod:`z3c.baseregistry` components that
-    should be sites, and register them in the database.
+    should be persistent sites, and register them in the database.
     """
 
     # TODO: We will ultimately need to deal with removing and renaming
@@ -164,9 +166,9 @@ def get_all_host_sites():
 
 def run_job_in_all_host_sites(func):
     """
-    While already operating inside of a transaction and the dataserver
+    While already operating inside of a transaction and the application
     environment, execute the callable given by ``func`` once for each
-    persistent, registered host (see ;func:`synchronize_host_policies`).
+    persistent, registered host (see :func:`synchronize_host_policies`).
     The callable is run with that site current.
 
     This is typically used to make configuration changes/adjustments
@@ -189,8 +191,14 @@ def run_job_in_all_host_sites(func):
         results.append(run_job_in_host_site(site, func))
     return results
 
-def get_host_site(site, safe=False):
-    site = str(site)
+def get_host_site(site_name, safe=False):
+    """
+    Find the persistent site named *site_name* and return it.
+
+    :keyword bool safe: If True, silently ignore any errors.
+      **DO NOT** use this param. Deprecated and dangerous.
+    """
+    site = str(site_name)
     try:
         sites = component.getUtility(IEtcNamespace, name='hostsites')
         result = sites[site]
@@ -202,6 +210,12 @@ def get_host_site(site, safe=False):
 get_site = get_host_site  # BWC
 
 def run_job_in_host_site(site, func):
+    """
+    Helper function to run the *func* with the given site
+    as the current site.
+
+    :param site: Either the site object itself, or its unique name.
+    """
     site = get_host_site(site) if isinstance(site, string_types) else site
     logger.debug('Running job %s in site %s', func, site.__name__)
     with current_site(site):

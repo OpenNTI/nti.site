@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+Implementations of sites and helpers for working with sites.
+
 .. $Id$
 """
 # NOTE: unicode_literals is NOT imported!!
@@ -29,9 +31,9 @@ _DEFAULT_COMPARISON = "Can't use default __cmp__" if _PYPY else "Object has defa
 
 def find_site_components(site_names):
     """
-    Return an IComponents implementation named for the first virtual site
-    found in the sequence of site_names. If no such components can be found,
-    returns none.
+    Return an (global, registered) :class:`.IComponents` implementation named
+    for the first virtual site found in the sequence of *site_names*.
+    If no such components can be found, returns none.
     """
     for site_name in site_names:
         if not site_name:  # Empty/default. We want the global. This should only ever be at the end
@@ -43,11 +45,17 @@ _find_site_components = find_site_components  # BWC
 
 def get_site_for_site_names(site_names, site=None):
     """
-    Return an :class:`ISite` implementation named for the first virtual site
-    found in the sequence of site_names. If no such site can be found,
-    returns the fallback site.
+    Return an :class:`.ISite` implementation named for the first virtual site
+    found in the sequence of site_names.
 
-    Provisional API, public for testing purposes only.
+    If there is a registered persistent site having the same name as the
+    registered global components found for *site_names*, then that site will be used.
+    Otherwise, if there is only a registered global components, a non-persistent site
+    that incorporates those components in the lookup order while still incorporating the
+    current (or provided) site will be returned.
+
+    If no such site or components can be found, returns the fallback
+    site (the current or provided *site*).
 
     :param site_names: Sequence of strings giving the virtual host names
         to use.
@@ -139,7 +147,10 @@ from zope.site.site import _LocalAdapterRegistry
 from BTrees import family64
 
 class WrongRegistrationTypeError(TypeError):
-    pass
+    """
+    Raised if an adapter registration is of the wrong type.
+    """
+
 
 class _PermissiveOOBTree(family64.OO.BTree):
 
@@ -174,11 +185,22 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # to BTree. Much of the actual lookup code is implemented in C, but it calls
     # into Python for _uncached_lookup, which stays in pure python.
 
+    #: The family for the provided map. Defaults to 64-bit maps. I.e., long.
     btree_family = family64
+
+    #: The type of BTree to be used for adapter registrations. This generally shouldn't
+    #: be changed. In an emergency, it can be set to :class:`dict` to avoid doing any
+    #: migrations.
     btree_oo_type = _PermissiveOOBTree
+
+    #: The size at which the total number of registered adapters will
+    #: be switched to a BTree.
     btree_provided_threshold = 5000
-    # The map threshold is lower than the provided threshold because it is
-    # there are many keys in the map so the overall effect is amplified.
+
+    #: The size at which individual keys in the lookup decision maps
+    #: will be switched to BTrees. The map threshold is lower than the provided threshold
+    #: because it is there are many keys in the map so the overall
+    #: effect is amplified.
     btree_map_threshold = 2000
 
     # REMEMBER: Always check the type *before* checking the length.
@@ -251,6 +273,9 @@ class BTreePersistentComponents(PersistentComponents):
     """
 
     btree_family = family64
+
+    #: The size at which we will switch from maps to BTrees for registered adapters
+    #: and registered utilities (individually).
     btree_threshold = 5000
 
     def _init_registries(self):
