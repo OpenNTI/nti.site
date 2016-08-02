@@ -15,28 +15,38 @@ logger = __import__('logging').getLogger(__name__)
 
 from six import string_types
 
+from zope import lifecycleevent
 from zope import component
+from zope import interface
 
 from zope.component.hooks import site as current_site
-
 from zope.component.interfaces import IComponents
+from zope.component.interfaces import ISite
 
 from zope.interface import ro
-
 from zope.interface.interfaces import ComponentLookupError
 
 from zope.traversing.interfaces import IEtcNamespace
 
-from nti.site.folder import HostPolicyFolder
-from nti.site.folder import HostPolicySiteManager
 
-from nti.site.interfaces import IMainApplicationFolder
+from zope.site.folder import Folder
+from zope.site.folder import rootFolder
+
+from .folder import HostPolicyFolder
+from .folder import HostPolicySiteManager
+from .folder import HostSitesFolder
+from .interfaces import IMainApplicationFolder
+from .site import BTreeLocalSiteManager
+
 
 def synchronize_host_policies():
     """
     Called within a transaction with a site being the current application
     site, find any :mod:`z3c.baseregistry` components that
     should be persistent sites, and register them in the database.
+
+    As a prerequisite, :func:`install_sites_folder` must have been done, and
+    we must be in that site.
     """
 
     # TODO: We will ultimately need to deal with removing and renaming
@@ -119,6 +129,108 @@ def synchronize_host_policies():
                 # should fire INewLocalSite
                 site.setSiteManager(site_policy)
                 secondary_comps = site_policy
+
+
+def install_sites_folder(server_folder):
+    """
+    Given a :class:`.IMainApplicationFolder` that has a site manager,
+    install a host sites folder.
+    """
+    sites = HostSitesFolder()
+    str(sites) # coverage
+    repr(sites) # coverage
+    server_folder['++etc++hostsites'] = sites
+    lsm = server_folder.getSiteManager()
+    lsm.registerUtility(sites, provided=IEtcNamespace, name='hostsites')
+    # synchronize_host_policies()
+
+def install_main_application_and_sites(conn,
+                                       root_name=u'Application',
+                                       root_alias=u'nti.dataserver_root',
+                                       main_name=u'dataserver2',
+                                       main_alias=u'nti.dataserver',
+                                       main_factory=Folder,
+                                       main_setup=None):
+    """
+    Install the main application and site folder structure into ZODB.
+
+    When this completes, the ZODB root object will have a :class:`.IRootFolder`
+    object at "Application" (and optionally at *root_alias*). This will
+    have a site manager.
+
+    The root folder in turn will have a
+    :class:`.IMainApplicationFolder` child named *main_name* (and
+    optionally at *main_alias*). It will have a site manager, and in
+    this site manager will be the "++etc++hostsites" object used to
+    contain host site folders.
+
+    :param conn: The open ZODB connection.
+    :keyword str root_name: The main name of the root folder. This generally should
+      be left as "Application" as that's what many Zope 3 components expect.
+    :keyword main_factory: The factory that will be used for the :class:`.IMainApplicationFolder`.
+      If it produces an object that doesn't implement this interface, it will still
+      be marked as doing so.
+    :keyword callable main_setup: If given, a callable that will accept the main
+      application folder object and perform further setup on it. This will be called
+      *before* any lifecycle events are generated. This is a good time to install additional
+      utilities, such as :class:`IIntId` utilities.
+    """
+    root = conn.root()
+
+    # The root folder
+    root_folder = rootFolder()
+    # NOTE that the root_folder doesn't get a __name__!
+    conn.add(root_folder)  # Ensure we have a connection so we can become KeyRefs
+    assert root_folder._p_jar is conn
+
+    # The root is generally presumed to be an ISite, so make it so
+    root_sm = BTreeLocalSiteManager(root_folder)  # site is IRoot, so __base__ is the GSM
+    assert root_sm.__parent__ is root_folder
+    assert root_sm.__bases__ == (component.getGlobalSiteManager(),)
+    conn.add(root_sm)  # Ensure we have a connection so we can become KeyRefs
+    assert root_sm._p_jar is conn
+
+    root_folder.setSiteManager(root_sm)
+    assert ISite.providedBy(root_folder)
+
+    server_folder = main_factory()
+    if not IMainApplicationFolder.providedBy(server_folder):
+        interface.alsoProvides(server_folder, IMainApplicationFolder)
+    conn.add(server_folder)
+    root_folder[main_name] = server_folder
+    assert server_folder.__parent__ is root_folder
+    assert server_folder.__name__ == main_name
+    assert root_folder[main_name] is server_folder
+
+    lsm = BTreeLocalSiteManager(server_folder)
+    conn.add(lsm)
+    assert lsm.__parent__ is server_folder
+    assert lsm.__bases__ == (root_sm,)
+
+    server_folder.setSiteManager(lsm)
+    assert ISite.providedBy(server_folder)
+
+    with current_site(server_folder):
+        assert component.getSiteManager() is lsm, "Component hooks must have been reset"
+
+        # The name that many Zope components assume
+        root[root_name] = root_folder
+        if root_alias:
+            root[root_alias] = server_folder
+
+        root[server_folder.__name__] = server_folder
+        if main_alias:
+            root[main_alias] = server_folder
+
+        if main_setup:
+            main_setup(server_folder)
+
+        lifecycleevent.added(root_folder)
+        lifecycleevent.added(server_folder)
+
+        install_sites_folder(server_folder)
+
+    return root_folder, server_folder
 
 def get_all_host_sites():
     """
