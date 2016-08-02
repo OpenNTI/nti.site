@@ -362,9 +362,9 @@ texinfo_documents = [
 intersphinx_mapping = {
     'https://docs.python.org/': None,
     'http://zodb.readthedocs.io/en/latest/': None,
-    'https://docs.zope.org/zope.interface/': None,
-    'https://docs.zope.org/zope.component/': None,
-    'https://docs.zope.org/zope.site/': None,
+    'http://zopeinterface.readthedocs.io/en/latest/': None,
+    'http://zopecomponent.readthedocs.io/en/latest/': None,
+    #'https://docs.zope.org/zope.site/': None,
 }
 
 extlinks = {'issue': ('https://github.com/NextThought/nti.site/issues/%s',
