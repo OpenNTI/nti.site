@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+Implementations of folders for site policies.
+
 .. $Id$
 """
 

@@ -33,7 +33,7 @@ class BasedSiteManager(_ZLocalSiteManager):
     """
     A site manager that exists simply to have bases, but not to
     record itself as children of those bases (since that's unnecessary
-    for our purposes and leads to conflicts).
+    for our purposes and leads to ZODB conflicts).
     """
 
     # Note that the adapter registries in the base objects /will/ have
@@ -79,7 +79,7 @@ class BasedSiteManager(_ZLocalSiteManager):
 class HostSiteManager(BasedSiteManager):
     """
     A site manager that is intended to be used with globally
-    registered IComponents plus the dataserver persistent components.
+    registered IComponents plus the application persistent components.
     """
 
     def __init__(self, site, name, host_components, persistent_components):
@@ -100,7 +100,9 @@ class HostSiteManager(BasedSiteManager):
 
 @interface.implementer(comp_interfaces.ISite)
 class TrivialSite(_ZContained):
-
+    """
+    Trivial non-persistent implementation of :class:`.ISite`
+    """
     def __init__(self, site_manager):
         self._sm = site_manager
 

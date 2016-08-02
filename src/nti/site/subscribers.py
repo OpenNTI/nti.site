@@ -1,33 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Integration between the ZCA ``site`` system, configured site
-policies, and the Dataserver.
+Subscribers for traversal events to ensure that the the proper
+site is installed, including respecting global registered components.
 
-In the Zope world, sites are objects that can express configuration by
-holding onto an instance of IComponents known as its *site manager*.
-Typically they are arranged in a tree, with the global site at the
-root of the tree. Site managers inherit configuration from their
-parents (bases, which may or may not be their ``__parent__``). Often,
-they are persistent and part of the traversal tree. One site is the
-current site and the ZCA functions (e.g.,
-:meth:`.IComponentArchitecture.queryUtility`) apply to that site.
-
-Our application has one persistent site, the dataserver site,
-containing persistent utilities (such as the dataserver); see
-:mod:`nti.dataserver.generations.install` This site, or a desndent of
-it, must always be the current site when executing application code.
-
-In our application, we also have the concept of site policies,
-something that is applied based on virtual hosting. A site policy is
-also an ``IComponents``, registered in the global site as a utility named
-for the hostname to which it should apply (e.g., ``mathcounts.nextthought.com``).
-These are not necessarily persistent and part of the traversal tree.
-
-This there are two things to accomplish: make the dataserver site the current site, and
-also construct a site that descends from that site and contains any applicable policies.
-
-.. $Id$
+.. caution:: :func:`zope.site.site.threadSiteSubscriber` also exists and is
+   configured by some packages like :mod:`zope.app.publication`. Care must be used to
+   ensure that it is *not* configured in place of our own :func:`threadSiteSubscriber`.
 """
 
 # turn off warning for not calling superclass, calling indirect superclass and

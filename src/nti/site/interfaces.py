@@ -19,10 +19,18 @@ from zope.site.interfaces import ILocalSiteManager
 from nti.schema.field import Number
 
 class InappropriateSiteError(LookupError):
-    pass
+    """
+    Raised if the installed site is not suitable to work with.
+
+    Currently no code in this package raises this exception.
+    """
 
 class SiteNotInstalledError(AssertionError):
-    pass
+    """
+    Raised when setting and getting a site do not work.
+
+    This is most often caused by not installing the zope.component hooks.
+    """
 
 class IMainApplicationFolder(IFolder):
     """
@@ -31,8 +39,8 @@ class IMainApplicationFolder(IFolder):
     folder will be an Site (with a site manager).
 
     This may be the same thing as the root folder. As an implementation
-    note, though, this is typically beneath the root folder and called
-    "dataserver2".
+    note, though, this is typically beneath the root folder and named
+    something application specific (e.g., "dataserver2").
     """
 class IHostPolicyFolder(IFolder):
     """
@@ -49,73 +57,6 @@ class IHostPolicySiteManager(ILocalSiteManager):
     in that order. This should be the site manager for an :class:`IHostPolicyFolder`
     """
 
-    def subscribedRegisterUtility(component=None, provided=None, name='',
-                                  info=u'', event=True, factory=None):
-
-        """
-        Register a utility
-
-        :param factory
-           Factory for the component to be registerd.
-
-        :param component
-           The registered component
-
-        :param provided
-           This is the interface provided by the utility.  If the
-           component provides a single interface, then this
-           argument is optional and the component-implemented
-           interface will be used.
-
-        :param name
-           The utility name.
-
-        :param info
-           An object that can be converted to a string to provide
-           information about the registration.
-
-        Only one of component and factory can be used.
-        A Registered event is generated with an IUtilityRegistration.
-
-        This method method assumes the utlity is subscribed
-    """
-
-    def subscribedUnregisterUtility(component=None, provided=None, name=u'',
-                                    factory=None):
-
-        """
-        Unregister a utility
-
-        A boolean is returned indicating whether the registry was
-        changed.  If the given component is None and there is no
-        component registered, or if the given component is not
-        None and is not registered, then the function returns
-        False, otherwise it returns True.
-
-        This method method assumes the utlity is subscribed
-
-        factory
-           Factory for the component to be unregisterd.
-
-        component
-           The registered component The given component can be
-           None, in which case any component registered to provide
-           the given provided interface with the given name is
-           unregistered.
-
-        provided
-           This is the interface provided by the utility.  If the
-           component is not None and provides a single interface,
-           then this argument is optional and the
-           component-implemented interface will be used.
-
-        name
-           The utility name.
-
-        Only one of component and factory can be used.
-        An UnRegistered event is generated with an IUtilityRegistration.
-        """
-
 class IHostSitesFolder(IFolder):
     """
     A container for the sites, each of which should be an
@@ -129,7 +70,7 @@ class IHostSitesFolder(IFolder):
 class ITransactionSiteNames(interface.Interface):
     """
     An interface for a utility that return a list of the possible site names
-    needed whenever transaction is run
+    needed whenever transaction is run.
     """
 
     def __call__(*args, **kwargs):
@@ -138,12 +79,13 @@ class ITransactionSiteNames(interface.Interface):
 class ISiteTransactionRunner(interface.Interface):
     """
     Something that runs code within a transaction, properly setting up
-    the persistent site and its environment.
+    the ZODB, persistent site, and its environment.
     """
 
-    def __call__(func, retries=0, sleep=None, site_names=(), side_effect_free=False):
+    def __call__(func, retries=0, sleep=None, site_names=(), side_effect_free=False,
+                 root_folder_name='nti.dataserver'):
         """
-        Runs the function given in `func` in a transaction and dataserver local
+        Runs the function given in `func` in a transaction and application local
         site manager (defaulting to the current site manager).
 
         :param function func: A function of zero parameters to run. If
@@ -165,8 +107,7 @@ class ISiteTransactionRunner(interface.Interface):
             attempts.
 
         :keyword site_names: DEPRECATED. Sequence of strings giving the
-            virtual host names to use. See :mod:`nti.dataserver.site`
-            for more details. If you do not provide this argument,
+            virtual host names to use. If you do not provide this argument,
             then the currently installed site will be maintained when
             the transaction is run. NOTE: The implementation of this
             may maintain either the site names or the actual site
@@ -176,6 +117,10 @@ class ISiteTransactionRunner(interface.Interface):
             the function is assummed to have no side effects that need
             to be committed; the transaction runner is free to abort/rollback
             or commit the transaction at its leisure.
+
+        :keyword str root_folder_name: This names the folder that can be found in the
+            root of the ZODB that will serve as the starting point to look for the
+            persistent named site.
 
         :return: The value returned by the first successful invocation of `func`.
         """

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+Helpers for running jobs in specific sites.
 .. $Id$
 """
 
@@ -114,6 +115,11 @@ class _RunJobInSite(TransactionLoop):
 _marker = object()
 
 def get_possible_site_names(*args, **kwargs):
+    """
+    Helper to find the most applicable site names.
+
+    This uses the :class:`.ITransactionSiteNames` utility.
+    """
     utility = component.queryUtility(ITransactionSiteNames)
     result = utility(*args, **kwargs) if utility is not None else None
     return result

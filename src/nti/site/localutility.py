@@ -3,6 +3,10 @@
 """
 Helpers for working with local utilities.
 
+A local utility is a (persistent) utility registered in a local (persistent) site
+manager. Local utilities need to be traversable and thus are usually children
+of the local site manager itself.
+
 .. $Id$
 """
 
@@ -21,12 +25,14 @@ def install_utility(utility, utility_name, provided, local_site_manager):
     do this from inside a handler for the registration of another
     dependent utility (:class:`.IRegistration`).
 
-    The utility should be :class:`IContained` because it
+    The utility should be :class:`.IContained` because it
     will be held inside the site manager.
 
     :param str utility_name: The *traversal* name of the utility, not
         the component registration name. This currently only handles
         the default, unnamed registration.
+
+    .. seealso:: :func:`install_utility_on_registration`
     """
 
     # Contain the utilities we are about to install.
@@ -46,6 +52,8 @@ def install_utility_on_registration(utility, utility_name, provided, event):
 
     The utility should be :class:`IContained` because it
     will be held inside the site manager.
+
+    :param event: The :class:`.IRegistered` event
     """
 
     registration = event.object
@@ -80,15 +88,15 @@ def queryNextUtility(context, interface, default=None):
     bases, with many of them having multiple bases. For example (using
     the notation: name (bases,) [type])::
 
-        platform.ou.edu (GlobalSiteManager) [global]
-        Dataserver (GlobalSiteManager) [persistent]
-        site-platform.ou.edu (Dataserver, platform.ou.edu) [persistent]
-        janux.ou.edu (platform.ou.edu) [global]
-        site-janux.ou.edu (janux.ou.edu, site-platform.ou.edu) [persistent]
+        example.com (GlobalSiteManager) [global]
+        Application (GlobalSiteManager) [persistent]
+        site-root.example.com (Application, example.com) [persistent]
+        child.example.com (example.com) [global]
+        site-child.example.com (child.example.com, site-root.example.com) [persistent]
 
-    This gives site-janux.ou.edu this (correct) resolution order::
+    This gives site-child.example.com this (correct) resolution order::
 
-        site-janux.ou.edu, janux.ou.edu, site-platform.ou.edu, dataserver, GSM
+        site-child.example.com, child.example.com, site-root.example,com Application, example.com, GSM
 
     However, :func:`zope.component.queryNextUtility` only looks in the *first* base to find
     a next utility. Therefore, when site-janux.ou.edu asks for a next utility,
