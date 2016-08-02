@@ -13,101 +13,47 @@ logger = __import__('logging').getLogger(__name__)
 import functools
 import transaction
 
-from zope import interface
+
 from zope import component
-from zope import lifecycleevent
-
-
 
 from zope.component.hooks import setHooks
 from zope.component.hooks import site as currentSite
 
-from zope.component.interfaces import ISite
+
 
 from ..site import BTreeLocalSiteManager
+from ..hostpolicy import install_main_application_and_sites
 from zope.site import SiteManagerContainer
-
-from zope.site.folder import Folder
-from zope.site.folder import rootFolder
-
-from zope.traversing.interfaces import IEtcNamespace
 
 import ZODB
 
 from ZODB.DemoStorage import DemoStorage
 
-from nti.site.folder import HostSitesFolder
-
-from nti.site.interfaces import IMainApplicationFolder
-
-
-from nti.site.site import get_site_for_site_names
+from ..site import get_site_for_site_names
 
 from nti.testing.layers import find_test
 from nti.testing.layers import GCLayerMixin
 from nti.testing.layers import ZopeComponentLayer
 from nti.testing.layers import ConfiguringLayerMixin
 
+from hamcrest import assert_that
+from nti.testing.matchers import provides
+from ..interfaces import IMainApplicationFolder
+
 import zope.testing.cleanup
 
 current_mock_db = None
 current_transaction = None
 
-root_name = 'nti.dataserver'
-
-def install_sites_folder(server_folder):
-    sites = HostSitesFolder()
-    str(sites) # coverage
-    repr(sites) # coverage
-    server_folder['++etc++hostsites'] = sites
-    lsm = server_folder.getSiteManager()
-    lsm.registerUtility(sites, provided=IEtcNamespace, name='hostsites')
-    # synchronize_host_policies()
+root_name = u'nti.dataserver'
 
 def install_main(conn):
-    root = conn.root()
-
-    # The root folder
-    root_folder = rootFolder()
-    conn.add(root_folder)  # Ensure we have a connection so we can become KeyRefs
-    assert root_folder._p_jar is conn
-
-    # The root is generally presumed to be an ISite, so make it so
-    root_sm = BTreeLocalSiteManager(root_folder)  # site is IRoot, so __base__ is the GSM
-    assert root_sm.__parent__ is root_folder
-    assert root_sm.__bases__ == (component.getGlobalSiteManager(),)
-    conn.add(root_sm)  # Ensure we have a connection so we can become KeyRefs
-    assert root_sm._p_jar is conn
-
-    root_folder.setSiteManager(root_sm)
-    assert ISite.providedBy(root_folder)
-
-    server_folder = Folder()
-    interface.alsoProvides(server_folder, IMainApplicationFolder)
-    conn.add(server_folder)
-    root_folder['dataserver2'] = server_folder
-    assert server_folder.__parent__ is root_folder
-    assert server_folder.__name__ == 'dataserver2'
-    assert root_folder['dataserver2'] is server_folder
-
-    lsm = BTreeLocalSiteManager(server_folder)
-    conn.add(lsm)
-    assert lsm.__parent__ is server_folder
-    assert lsm.__bases__ == (root_sm,)
-
-    server_folder.setSiteManager(lsm)
-    assert ISite.providedBy(server_folder)
-
-    with currentSite(server_folder):
-        assert component.getSiteManager() is lsm, "Component hooks must have been reset"
-
-        root[root_name] = server_folder
-        root['Application'] = root_folder  # The name that many Zope components assume
-
-        lifecycleevent.added(root_folder)
-        lifecycleevent.added(server_folder)
-
-        install_sites_folder(server_folder)
+    def setup(f):
+        assert_that(f, provides(IMainApplicationFolder))
+    install_main_application_and_sites(conn,
+                                       root_alias=root_name,
+                                       main_name=u'dataserver2',
+                                       main_setup=setup)
 
 def init_db(db, conn=None):
     conn = db.open() if conn is None else conn
