@@ -563,3 +563,12 @@ def _foo_factory(*args):
     return 1
 def _foo_factory2(*args):
     return 2
+
+class TestPermissiveOOBTree(unittest.TestCase):
+
+    def test_default(self):
+        from nti.site.site import _PermissiveOOBTree
+        tree = _PermissiveOOBTree()
+        key = object()
+
+        assert_that(tree.get(key), is_(none()))
