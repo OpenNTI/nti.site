@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.0.1 (unreleased)
+1.0.1 (2016-09-08)
 ==================
 
 - If you are using zope.interface 4.3.0 or greater, you can register
