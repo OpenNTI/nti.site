@@ -14,7 +14,6 @@ logger = __import__('logging').getLogger(__name__)
 
 import sys
 
-from zope.interface.interface import InterfaceClass
 from zope import component
 
 from zope.component.hooks import getSite
@@ -149,6 +148,9 @@ from BTrees import family64
 class WrongRegistrationTypeError(TypeError):
     """
     Raised if an adapter registration is of the wrong type.
+
+    .. versionchanged:: 1.0.1
+       This is no longer raised by this package.
     """
 
 
@@ -237,19 +239,6 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
                     # so we may need to mark ourself as changed.
                     self._p_changed = True
 
-    def register(self, required, provided, name, value):
-        """
-        Raises :exc:`WrongRegistrationTypeError` if *required* or
-        *provided* contains a bare class.
-        """
-        # Pre-check that there are no bad registrations.
-        for r in required:
-            if r is not None and not isinstance(r, InterfaceClass):
-                raise WrongRegistrationTypeError("Unsupported declaration type in required %s" % r)
-        if not isinstance(provided, InterfaceClass):
-            raise WrongRegistrationTypeError("Unsupported declaration type in provided %s" % provided)
-        return super(BTreeLocalAdapterRegistry, self).register(required, provided, name, value)
-
     def changed(self, originally_changed):
         # If we changed, check and migrate
         if originally_changed is self:
@@ -304,25 +293,15 @@ class BTreePersistentComponents(PersistentComponents):
     def registerUtility(self, component=None, provided=None, name=u'', info=u'',
                         event=True, factory=None):
         result = None
-        try:
-            result = super(BTreePersistentComponents, self).registerUtility(
-                component, provided, name, info, event, factory)
-        except WrongRegistrationTypeError:
-            # Back out our partial state changes
-            self.unregisterUtility(component, provided, name, factory)
-            raise
+        result = super(BTreePersistentComponents, self).registerUtility(
+            component, provided, name, info, event, factory)
         self._check_and_btree_map('_utility_registrations')
 
         return result
 
     def registerAdapter(self, *args, **kwargs):
         result = None
-        try:
-            result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
-        except WrongRegistrationTypeError:
-            kwargs.pop('event', None)
-            self.unregisterAdapter(*args, **kwargs)
-            raise
+        result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
         self._check_and_btree_map('_adapter_registrations')
         return result
 

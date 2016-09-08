@@ -16,6 +16,7 @@ from hamcrest import assert_that
 from hamcrest import has_property
 from hamcrest import same_instance
 from hamcrest import none
+from hamcrest import has_length
 does_not = is_not
 
 import unittest
@@ -25,6 +26,7 @@ from zope import interface
 from zope.interface import ro
 from zope.interface import implementedBy
 from zope.interface import Interface
+from zope.interface.interfaces import ComponentLookupError
 
 from zope.component.hooks import getSite
 from zope.component.hooks import setSite
@@ -329,15 +331,13 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         new_base.adapters.btree_provided_threshold = 0
         new_base.adapters.btree_map_threshold = 1
-        # Note: this causes btree-ing the map to fail. The implementedBy callable has default comparison
-        # and can't be stored in a btree
-        try:
-            new_base.registerAdapter(_foo_factory,
-                                     required=(object,),
-                                     provided=IFoo)
-            self.fail("Should raise")
-        except WrongRegistrationTypeError:
-            pass
+        # Note: this used-to cause btree-ing the map to fail. The
+        # implementedBy callable previously had default comparison and can't be
+        # stored in a btree. As of zope.interface 4.3.0, this is fixed.
+
+        new_base.registerAdapter(_foo_factory,
+                                 required=(object,),
+                                 provided=IFoo)
 
         new_base.registerAdapter(_foo_factory2,
                                  required=(IFoo,),
@@ -347,6 +347,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(new_base._adapter_registrations.keys(),
                     contains(
                         ((IFoo,), IMock, u''),
+                        ((implementedBy(object),), IFoo, u'' ),
                     ))
         assert_that(new_base.adapters._provided, is_(BTrees.family64.OI.BTree))
         assert_that(new_base.adapters._adapters[0], is_({}))
@@ -371,6 +372,60 @@ class TestBTreeSiteMan(AbstractTestBase):
         x = new_sub.queryAdapter(RootFoo(), IMock)
         assert_that(x, is_(2))
 
+    def test_register_implemented_by_lookup_utility(self):
+        storage = DemoStorage()
+        self._store_base_subs_in_zodb(storage)
+
+        db = DB(storage)
+        conn = db.open()
+        new_base = conn.root()['base']
+        new_base._p_activate()
+        new_sub = conn.root()['sub']
+
+
+        new_base.utilities.btree_provided_threshold = 0
+        new_base.utilities.btree_map_threshold = 0
+
+        new_base.registerUtility(MockSite(),
+                                 provided=IFoo)
+        provided1 = new_base.adapters._provided
+        # In the past, we couldn't register by implemented, but now we can.
+        new_base.registerUtility(MockSite(),
+                                 provided=implementedBy(MockSite),
+                                 name=u'foo')
+
+        provided2 = new_base.adapters._provided
+        # Make sure that it only converted once
+        assert_that(provided1, is_(same_instance(provided2)))
+        assert_that(new_base._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+
+        assert_that(new_base._utility_registrations.keys(),
+                    contains(
+                        (IFoo, u''),
+                        ((implementedBy(MockSite), u'foo')),
+                    ))
+        assert_that(new_base.utilities._provided, is_(BTrees.family64.OI.BTree))
+        assert_that(new_base.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+
+        assert_that(new_base.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+
+
+        transaction.commit()
+        conn.close()
+        db.close()
+
+        db = DB(storage)
+        conn = db.open()
+        new_sub = conn.root()['sub']
+
+        x = new_sub.queryUtility(IFoo)
+        assert_that(x, is_(MockSite))
+
+        # But it can't actually be looked up, regardless of whether we
+        # convert to btrees or not
+        x = new_sub.queryUtility(MockSite, u'foo')
+        assert_that(x, is_(none()))
+
     def test_pickle_zodb_lookup_utility(self):
         # Now, we can register a couple utilities in the base, save everything,
         # and look it up in the sub (when the classes don't match)
@@ -390,15 +445,10 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base.registerUtility(MockSite(),
                                  provided=IFoo)
         provided1 = new_base.adapters._provided
-        try:
-            new_base.registerUtility(MockSite(),
-                                     provided=implementedBy(object),
-                                     name=u'foo')
-            self.fail("Should raise TypeError")
-        except WrongRegistrationTypeError:
-            # Once we've converted, we can't register implementedBy
-            # again.
-            pass
+        # Previously this would fail. Now it works.
+        new_base.registerUtility(MockSite(),
+                                 provided=implementedBy(object),
+                                 name=u'foo')
 
         new_base.registerUtility(MockSite(),
                                  provided=IMock,
@@ -411,8 +461,9 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         assert_that(new_base._utility_registrations.keys(),
                     contains(
-                        ((IFoo, u'')),
+                        (IFoo, u''),
                         (IMock, u'foo'),
+                        (implementedBy(object), u'foo'),
                     ))
         assert_that(new_base.utilities._provided, is_(BTrees.family64.OI.BTree))
         assert_that(new_base.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
@@ -441,10 +492,18 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.utilities.btree_provided_threshold = 0
         comps.utilities.btree_map_threshold = 0
 
-        assert_that(calling(comps.registerUtility).with_args(MockSite(),
-                              provided=implementedBy(object),
-                              name=u'foo'),
-                    raises(WrongRegistrationTypeError))
+        comps.registerUtility(component=MockSite(),
+                              provided=implementedBy(object))
+
+        regs = list(comps.registeredUtilities())
+        assert_that(regs, has_length(1))
+
+        # But note that we can't actually look this up, regardless of whether
+        # we use BTrees or not
+        assert_that(regs[0], has_property('provided', implementedBy(object)))
+
+        assert_that(calling(comps.getUtility).with_args(implementedBy(object)),
+                    raises(ComponentLookupError))
 
     def test_convert_with_utility_no_provided(self):
         comps = BLSM(None)
@@ -491,14 +550,16 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.adapters.btree_provided_threshold = 0
         comps.utilities.btree_map_threshold = 0
 
-        assert_that(calling(comps.registerAdapter).with_args(
+        comps.registerAdapter(
                            _foo_factory,
-                           required=(object, str),
-                           provided=IFoo),
-                    raises(WrongRegistrationTypeError))
+                           required=(object, type('str')),
+                           provided=IFoo)
+
+        x = comps.getMultiAdapter((object(), 'str'), IFoo)
+        assert_that(x, is_(1))
 
 
-def _foo_factory(o):
+def _foo_factory(*args):
     return 1
-def _foo_factory2(o):
+def _foo_factory2(*args):
     return 2
