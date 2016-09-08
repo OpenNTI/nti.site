@@ -5,7 +5,11 @@
 1.0.1 (unreleased)
 ==================
 
-- Nothing changed yet.
+- If you are using zope.interface 4.3.0 or greater, you can register
+  utilities and adapters using ``implementedBy`` (so bare classes) in
+  a BTreeLocalSiteManager. Otherwise, using an older version, you'll
+  get a TypeError and may be unable to complete the registration or
+  transition to BTrees, and the map data may be inconsistent.
 
 
 1.0.0 (2016-08-02)
