@@ -94,12 +94,14 @@ class _RunJobInSite(TransactionLoop):
             return _tx_string(self.job_name)
         # Derive from the function
         func = self.handler
-        name = func.__name__
-        doc = func.__doc__
+        name = getattr(func, '__name__', '')
+        doc = getattr(func, '__doc__', '')
+        if name == '_': # "Anonymous" function; transaction convention
+            name = ''
         note = None
         if doc:
-            note = name + '\n\n' + doc
-        elif name != '_': # "Anonymous" function; transaction convention
+            note = ((name + '\n\n') if name else '') + doc
+        elif name:
             note = name
 
         note = _tx_string(note) if note else None

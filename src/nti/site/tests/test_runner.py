@@ -82,7 +82,8 @@ class TestSiteCM(base.AbstractTestBase):
 
 class TestRunner(base.AbstractTestBase):
 
-    def test_run(self):
+    def setUp(self):
+        super(TestRunner, self).setUp()
         db = ZODB.DB(DemoStorage(name='base'))
         component.provideUtility(db, IDatabase)
 
@@ -93,7 +94,7 @@ class TestRunner(base.AbstractTestBase):
         transaction.commit()
         conn.close()
 
-
+    def test_run_description(self):
         expected_desc = None
         try:
             transaction.Transaction().note(b'bytes')
@@ -115,5 +116,24 @@ class TestRunner(base.AbstractTestBase):
         expected_desc = _tx_string('Test')
         run_job_in_site(func, job_name=b"Test")
 
+        func.__name__ = '_'
+        expected_desc = _tx_string(func.__doc__)
+        run_job_in_site(func, site_names=('abc',))
+
         expected_desc = None
         run_job_in_site(lambda: None)
+
+    def test_run_missing_name_doc(self):
+        # Issue 16
+        class Callable(object):
+            # Like functools.partial, this doesn't expose a __name__ or __doc__.
+            def __getattribute__(self, name):
+                if name in ('__doc__', '__name__'):
+                    raise AttributeError(name)
+                return object.__getattrribute__(self, name)
+
+            def __call__(self):
+                assert_that(transaction.get().description, is_(''))
+
+
+        run_job_in_site(Callable())
