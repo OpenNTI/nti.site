@@ -5,7 +5,7 @@ Helpers for running jobs in specific sites.
 .. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
@@ -42,7 +42,7 @@ def _connection_cm():
         conn.close()
 
 @contextlib.contextmanager
-def _site_cm(conn, site_names=(), root_folder_name='nti.dataserver'):
+def _site_cm(conn, site_names=(), root_folder_name=u'nti.dataserver'):
     # If we don't sync, then we can get stale objects that
     # think they belong to a closed connection
     # TODO: Are we doing something in the wrong order? Connection
@@ -66,6 +66,20 @@ def _site_cm(conn, site_names=(), root_folder_name='nti.dataserver'):
 
 from nti.transactions.transactions import TransactionLoop
 
+from transaction import Transaction
+try:
+    Transaction().note(b'bytes')
+except TypeError:
+    # Transaction 2.x needs text
+    def _tx_string(s):
+        return s.decode('utf-8') if isinstance(s, bytes) else s
+else:
+    # Transaction 1.x needs bytes
+    from six import text_type
+    def _tx_string(s):
+        return s.encode('utf-8') if isinstance(s, text_type) else s
+del Transaction
+
 class _RunJobInSite(TransactionLoop):
 
     def __init__(self, *args, **kwargs):
@@ -77,14 +91,19 @@ class _RunJobInSite(TransactionLoop):
 
     def describe_transaction(self, *args, **kwargs):
         if self.job_name:
-            return self.job_name
+            return _tx_string(self.job_name)
         # Derive from the function
         func = self.handler
-        note = func.__doc__
-        if note:
-            note = note.split('\n', 1)[0]
-        else:
-            note = func.__name__
+        name = func.__name__
+        doc = func.__doc__
+        note = None
+        if doc:
+            note = name + '\n\n' + doc
+        elif name != '_': # "Anonymous" function; transaction convention
+            note = name
+
+        note = _tx_string(note) if note else None
+
         return note
 
     def run_handler(self, conn, *args, **kwargs):
@@ -131,7 +150,7 @@ def run_job_in_site(func,
                     site_names=_marker,
                     job_name=None,
                     side_effect_free=False,
-                    root_folder_name='nti.dataserver'):
+                    root_folder_name=u'nti.dataserver'):
     """
     Runs the function given in `func` in a transaction and dataserver local
     site manager. See :class:`.ISiteTransactionRunner`

@@ -5,7 +5,8 @@
 1.0.2 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Support for transaction 2.0, and fix a lurking UnicodeError under
+  Python 3. See :issue:`14`.
 
 
 1.0.1 (2016-09-08)

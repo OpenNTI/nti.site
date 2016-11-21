@@ -6,7 +6,7 @@
 .. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
@@ -21,6 +21,7 @@ from hamcrest import is_
 
 from nti.testing import base
 
+import six
 import transaction
 
 from zope import component
@@ -33,6 +34,7 @@ from zope.site import SiteManagerContainer
 from ..runner import _connection_cm
 from ..runner import _site_cm
 from ..runner import run_job_in_site
+from ..runner import _tx_string
 
 from ..transient import TrivialSite
 
@@ -59,9 +61,9 @@ class TestSiteCM(base.AbstractTestBase):
                 return self._root
 
         c = MockConn()
-        c._root['nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
+        c._root[u'nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
         with _site_cm(c, ('abc',)) as sitemanc:
-            assert_that(sitemanc, is_(c._root['nti.dataserver']))
+            assert_that(sitemanc, is_(c._root[u'nti.dataserver']))
 
     def test_site_cm_not_installed(self):
         class MockConn(object):
@@ -71,7 +73,7 @@ class TestSiteCM(base.AbstractTestBase):
                 return self._root
 
         c = MockConn()
-        c._root['nti.dataserver'] = TrivialSite(None)
+        c._root[u'nti.dataserver'] = TrivialSite(None)
         try:
             with _site_cm(c, ('abc',)):
                 self.fail("Should not get here")
@@ -85,18 +87,33 @@ class TestRunner(base.AbstractTestBase):
         component.provideUtility(db, IDatabase)
 
         conn = db.open()
-        smc = conn.root()['nti.dataserver'] = SiteManagerContainer()
+        smc = conn.root()[u'nti.dataserver'] = SiteManagerContainer()
         smc.setSiteManager(component.getGlobalSiteManager())
 
         transaction.commit()
         conn.close()
 
-        def func():
-            "A docstring"
-            assert_that(component.getSiteManager(), is_(component.getGlobalSiteManager()))
 
+        expected_desc = None
+        try:
+            transaction.Transaction().note(b'bytes')
+        except TypeError:
+            expected_desc_type = six.text_type
+        else:
+            expected_desc_type = bytes
+
+        # Note: This file's coding is utf-8!
+        def func():
+            "A docstring with utf-8 chars: 😀"
+            assert_that(component.getSiteManager(), is_(component.getGlobalSiteManager()))
+            assert_that(transaction.get().description, is_(expected_desc))
+            assert_that(transaction.get().description, is_(expected_desc_type))
+
+        expected_desc = _tx_string('func\n\n' + func.__doc__)
         run_job_in_site(func, site_names=('abc',))
 
-        run_job_in_site(func, job_name="Test")
+        expected_desc = _tx_string('Test')
+        run_job_in_site(func, job_name=b"Test")
 
+        expected_desc = None
         run_job_in_site(lambda: None)
