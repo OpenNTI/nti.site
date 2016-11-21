@@ -5,7 +5,9 @@
 1.0.3 (unreleased)
 ==================
 
-- Nothing changed yet.
+- ``run_job_in_site`` now supports :func:`functools.partial` objects
+  and other callables that don't have a ``__name__`` and/or
+  ``__doc__``. See :issue:`16`.
 
 
 1.0.2 (2016-11-21)
