@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.0.3 (unreleased)
+1.0.3 (2016-11-21)
 ==================
 
 - ``run_job_in_site`` now supports :func:`functools.partial` objects
