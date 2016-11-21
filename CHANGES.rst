@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.0.2 (unreleased)
+1.0.2 (2016-11-21)
 ==================
 
 - Support for transaction 2.0, and fix a lurking UnicodeError under
