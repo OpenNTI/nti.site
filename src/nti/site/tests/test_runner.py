@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
 
-
-.. $Id$
-"""
 
 from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
@@ -96,12 +92,7 @@ class TestRunner(base.AbstractTestBase):
 
     def test_run_description(self):
         expected_desc = None
-        try:
-            transaction.Transaction().note(b'bytes')
-        except TypeError:
-            expected_desc_type = six.text_type
-        else:
-            expected_desc_type = bytes
+        expected_desc_type = six.text_type
 
         # Note: This file's coding is utf-8!
         def func():
