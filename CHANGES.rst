@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.1.0 (unreleased)
+1.1.0 (2017-06-14)
 ==================
 
 - Require zope.interface 4.4.2 or greater; 4.4.1 has regressions.
