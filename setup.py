@@ -43,6 +43,7 @@ setup(
     namespace_packages=['nti'],
     tests_require=TESTS_REQUIRE,
     install_requires=[
+        'BTrees >= 4.3.2', # permissive get()
         'ZODB',
         'nti.schema',
         'nti.transactions',

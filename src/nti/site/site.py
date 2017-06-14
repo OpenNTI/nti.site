@@ -3,7 +3,6 @@
 """
 Implementations of sites and helpers for working with sites.
 
-.. $Id$
 """
 # NOTE: unicode_literals is NOT imported!!
 from __future__ import print_function, absolute_import, division
@@ -12,7 +11,6 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
-import sys
 
 from zope import component
 
@@ -24,9 +22,6 @@ from persistent import Persistent
 
 from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
-
-_PYPY = hasattr(sys, 'pypy_version_info')
-_DEFAULT_COMPARISON = "Can't use default __cmp__" if _PYPY else "Object has default comparison"
 
 def find_site_components(site_names):
     """
@@ -103,9 +98,9 @@ def get_site_for_site_names(site_names, site=None):
 
             main_site = site
             site_manager = HostSiteManager(main_site.__parent__,
-                                            main_site.__name__,
-                                            site_components,
-                                            main_site.getSiteManager())
+                                           main_site.__name__,
+                                           site_components,
+                                           main_site.getSiteManager())
             site = TrivialSite(site_manager)
             site.__parent__ = main_site
             site.__name__ = site_name
@@ -153,17 +148,10 @@ class WrongRegistrationTypeError(TypeError):
        This is no longer raised by this package.
     """
 
-
-class _PermissiveOOBTree(family64.OO.BTree):
-
-    def get(self, key, default=None):
-        "Doesn't raise an error for getting something with default comparison."
-        try:
-            return super(_PermissiveOOBTree, self).get(key, default)
-        except TypeError as e:
-            if e.args[0] == _DEFAULT_COMPARISON:
-                return default
-            raise # pragma: no cover
+# This used to catch type errors on get() for default comparison,
+# but as of BTrees 4.3.2 that no longer happens. The name needs to
+# stay around for BWC with existing pickles.
+_PermissiveOOBTree = family64.OO.BTree
 
 
 class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
@@ -193,7 +181,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     #: The type of BTree to be used for adapter registrations. This generally shouldn't
     #: be changed. In an emergency, it can be set to :class:`dict` to avoid doing any
     #: migrations.
-    btree_oo_type = _PermissiveOOBTree
+    btree_oo_type = family64.OO.BTree
 
     #: The size at which the total number of registered adapters will
     #: be switched to a BTree.

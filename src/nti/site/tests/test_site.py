@@ -567,8 +567,10 @@ def _foo_factory2(*args):
 class TestPermissiveOOBTree(unittest.TestCase):
 
     def test_default(self):
+        # This is now legacy after BTrees 4.3.2, kept around for
+        # ensuring it still works.
         from nti.site.site import _PermissiveOOBTree
         tree = _PermissiveOOBTree()
-        key = object()
+        key = object() # default comparison
 
         assert_that(tree.get(key), is_(none()))

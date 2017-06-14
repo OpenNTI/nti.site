@@ -10,6 +10,8 @@
 - Require transaction >= 2.1.2 for its more relaxed handling of text
   or byte meta data.
 
+- Require BTrees >= 4.3.2 for its relaxed handling of objects with
+  default comparison.
 
 1.0.3 (2016-11-21)
 ==================
