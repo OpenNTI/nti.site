@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Helpers for running jobs in specific sites.
-.. $Id$
+
 """
 
 from __future__ import print_function, absolute_import, division
@@ -66,19 +66,11 @@ def _site_cm(conn, site_names=(), root_folder_name=u'nti.dataserver'):
 
 from nti.transactions.transactions import TransactionLoop
 
-from transaction import Transaction
-try:
-    Transaction().note(b'bytes')
-except TypeError:
-    # Transaction 2.x needs text
-    def _tx_string(s):
-        return s.decode('utf-8') if isinstance(s, bytes) else s
-else:
-    # Transaction 1.x needs bytes
-    from six import text_type
-    def _tx_string(s):
-        return s.encode('utf-8') if isinstance(s, text_type) else s
-del Transaction
+# transaction >= 2 < 2.1.1 needs text; Transaction 1 wants
+# bytes (generally). Transaction 2.1.1 and above will work with either.
+def _tx_string(s):
+    return s.decode('utf-8', 'replace') if isinstance(s, bytes) else s
+
 
 class _RunJobInSite(TransactionLoop):
 

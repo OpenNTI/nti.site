@@ -2,15 +2,8 @@ import codecs
 from setuptools import setup, find_packages
 
 
-
-entry_points = {
-    'console_scripts': [
-    ],
-}
-
 TESTS_REQUIRE = [
     'fudge',
-    'nose2[coverage_plugin]',
     'nti.testing',
     'pyhamcrest',
     'z3c.baseregistry',
@@ -39,6 +32,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
@@ -49,22 +43,22 @@ setup(
     namespace_packages=['nti'],
     tests_require=TESTS_REQUIRE,
     install_requires=[
-        'setuptools',
-        'persistent',
-        'six',
         'ZODB',
+        'nti.schema',
+        'nti.transactions',
+        'persistent',
+        'setuptools',
+        'six',
+        'transaction >= 2.1.1', # for looser text/byte handling
         'zope.component',
         'zope.container',
-        'zope.interface',
+        'zope.interface >= 4.4.2',
         'zope.location',
         'zope.proxy',
         'zope.site',
         'zope.traversing',
-        'nti.schema',
-        'nti.transactions'
     ],
     extras_require={
         'test': TESTS_REQUIRE,
     },
-    entry_points=entry_points,
 )

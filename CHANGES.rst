@@ -2,10 +2,13 @@
  Changes
 =========
 
-1.0.4 (unreleased)
+1.1.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Require zope.interface 4.4.2 or greater; 4.4.1 has regressions.
+
+- Require transaction >= 2.1.2 for its more relaxed handling of text
+  or byte meta data.
 
 
 1.0.3 (2016-11-21)
