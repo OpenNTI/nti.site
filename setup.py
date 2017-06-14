@@ -19,8 +19,9 @@ setup(
     version=_read('version.txt').strip(),
     author='Jason Madden',
     author_email='jason@nextthought.com',
-    description="NTI Site",
+    description="Opinionated ZODB persistent site implementations",
     long_description=_read('README.rst'),
+    url="https://github.com/NextThought/nti.site",
     license='Apache',
     keywords='Site management',
     classifiers=[
