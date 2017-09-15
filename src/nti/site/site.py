@@ -13,17 +13,37 @@ logger = __import__('logging').getLogger(__name__)
 
 
 from zope import component
+from zope import interface
 
 from zope.component.hooks import getSite
 
 from zope.component.interfaces import IComponents
 
+from zope.interface.interface import InterfaceClass
+
 from persistent import Persistent
+
+from nti.schema.fieldproperty import createDirectFieldProperties
+
+from nti.schema.schema import SchemaConfigured
+
+from nti.site.interfaces import ISiteMapping
+from nti.site.interfaces import SiteNotFoundError
 
 from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
 
-def find_site_components(site_names):
+
+def get_alternate_site_name(site_name):
+    """
+    Check for a configured ISiteMapping
+    """
+    site_mapping = component.queryUtility(ISiteMapping, name=site_name)
+    if site_mapping is not None:
+        return site_mapping.target_site_name
+
+
+def find_site_components(site_names, check_alternate=False):
     """
     Return an (global, registered) :class:`.IComponents` implementation named
     for the first virtual site found in the sequence of *site_names*.
@@ -32,21 +52,28 @@ def find_site_components(site_names):
     for site_name in site_names:
         if not site_name:  # Empty/default. We want the global. This should only ever be at the end
             return None
+        if check_alternate:
+            site_name = get_alternate_site_name(site_name)
+            if site_name is None:
+                continue
         components = component.queryUtility(IComponents, name=site_name)
         if components is not None:
             return components
 _find_site_components = find_site_components  # BWC
+
 
 def get_site_for_site_names(site_names, site=None):
     """
     Return an :class:`.ISite` implementation named for the first virtual site
     found in the sequence of site_names.
 
-    If there is a registered persistent site having the same name as the
-    registered global components found for *site_names*, then that site will be used.
-    Otherwise, if there is only a registered global components, a non-persistent site
-    that incorporates those components in the lookup order while still incorporating the
-    current (or provided) site will be returned.
+    If there is a registered persistent site having the same name as the registered
+    global components found for *site_names*, then that site will be used.
+    If we do not find a persistent site, we'll attempt to find a registered
+    :class:`ISiteMapping` pointing to a persistent site. Otherwise, if there
+    is only a registered global components, a non-persistent site that
+    incorporates those components in the lookup order while still incorporating
+    the current (or provided) site will be returned.
 
     If no such site or components can be found, returns the fallback
     site (the current or provided *site*).
@@ -62,7 +89,12 @@ def get_site_for_site_names(site_names, site=None):
 
     # assert site.getSiteManager().__bases__ == (component.getGlobalSiteManager(),)
     # Can we find a named site to use?
-    site_components = find_site_components(site_names) if site_names else None  # micro-opt to not call if no names
+    site_components = None
+    if site_names:
+        site_components = find_site_components(site_names)
+        if not site_components:
+            # Ok, let's look for an ISiteMapping
+            site_components = find_site_components(site_names, check_alternate=True)
     if site_components:
         # Yes we can.
         site_name = site_components.__name__
@@ -323,6 +355,28 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
                 reg.__class__ = BTreeLocalAdapterRegistry
                 if not changed:
                     reg._p_changed = False
+
+
+@interface.implementer(ISiteMapping)
+class SiteMapping(SchemaConfigured):
+    """
+    Maps one site to another.
+
+    :raises a :class:`SiteNotFoundError` object if no site found
+    """
+
+    createDirectFieldProperties(ISiteMapping)
+
+    def get_target_site(self):
+        """
+        Returns the target site as defined by this mapping.
+        """
+        site_names = (self.target_site_name,)
+        result = get_site_for_site_names(site_names, site=None)
+        if result is None:
+            # Invalid mapping
+            raise SiteNotFoundError("No site found for %s" % self.target_site_name)
+        return result
 
 
 # Legacy notes:
