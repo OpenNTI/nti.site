@@ -124,3 +124,21 @@ class ISiteTransactionRunner(interface.Interface):
 
         :return: The value returned by the first successful invocation of `func`.
         """
+
+class ISiteMapping(interface.Interface):
+    """
+    Maps a site name to an alternate site. Useful when we do not want full
+    fledged persistent sites. Should only be used after checking for an
+    existing site.
+    """
+
+    source_site_name = TextLine(title=u"The source site name")
+
+    target_site_name = TextLine(title=u"The target site name")
+
+    def get_target_site(self):
+        """
+        Returns the target site as defined by this mapping.
+
+        :raises a :class:`SiteNotFoundError` object if no site found
+        """
