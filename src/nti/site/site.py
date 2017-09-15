@@ -19,8 +19,6 @@ from zope.component.hooks import getSite
 
 from zope.component.interfaces import IComponents
 
-from zope.interface.interface import InterfaceClass
-
 from persistent import Persistent
 
 from nti.schema.fieldproperty import createDirectFieldProperties
