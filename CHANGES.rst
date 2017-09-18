@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.2.0 (unreleased)
+1.2.0 (2017-09-18)
 ==================
 
 - Add the ability to map one (non-persistent) site to another via
