@@ -36,8 +36,13 @@ from zope.component.hooks import site as currentSite
 
 from zope.location.interfaces import LocationError
 
+from nti.site.interfaces import ISiteMapping
 from nti.site.interfaces import IHostPolicyFolder
+
+from nti.site.site import SiteMapping
+
 from nti.site.subscribers import threadSiteSubscriber
+
 from nti.site.transient import HostSiteManager as HSM
 
 from nti.site.tests import SharedConfiguringTestLayer
@@ -341,3 +346,29 @@ class TestSiteSync(unittest.TestCase):
 
         # No new sites created
         assert_that(self._events, has_length(len(_SITES)))
+
+    @WithMockDS
+    def test_site_mapping(self):
+        """
+        Test that we appropriately find mapped site components for
+        non-persistent sites.
+        """
+        transient_site = 'TransientSite'
+
+        with mock_db_trans() as conn:
+            synchronize_host_policies()
+            ds = conn.root()['nti.dataserver']
+            assert ds is not None
+            sites = ds['++etc++hostsites']
+
+            # Base
+            result = get_site_for_site_names((transient_site,))
+            assert_that(result, is_(same_instance(getSite())))
+
+            # Mapped
+            site_mapping = SiteMapping(source_site_name=transient_site,
+                                       target_site_name=DEMOALPHA.__name__)
+            BASE.registerUtility(site_mapping, provided=ISiteMapping, name=transient_site)
+
+            result = get_site_for_site_names((transient_site,))
+            assert_that(result, is_(same_instance(sites[DEMOALPHA.__name__])))

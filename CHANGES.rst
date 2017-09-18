@@ -2,10 +2,13 @@
  Changes
 =========
 
-1.1.1 (unreleased)
+1.2.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Add the ability to map one (non-persistent) site to another via
+  configuration. If ``get_site_for_site_names`` does not find
+  persistent site components for a site, it will fall back to looking
+  for a configured ``ISiteMapping`` pointing to another target site.
 
 
 1.1.0 (2017-06-14)
