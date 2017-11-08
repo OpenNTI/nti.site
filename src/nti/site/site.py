@@ -65,13 +65,16 @@ def get_site_for_site_names(site_names, site=None):
     Return an :class:`.ISite` implementation named for the first virtual site
     found in the sequence of site_names.
 
-    If there is a registered persistent site having the same name as the registered
-    global components found for *site_names*, then that site will be used.
-    If we do not find a persistent site, we'll attempt to find a registered
-    :class:`ISiteMapping` pointing to a persistent site. Otherwise, if there
-    is only a registered global components, a non-persistent site that
-    incorporates those components in the lookup order while still incorporating
-    the current (or provided) site will be returned.
+    First, we'll attempt to find the registered persistent site; either given
+    by the site name or redirected by a registered :class:`ISiteMapping`
+    pointing to a persistent site. Otherwise, we'll look for a site without the
+    :class:`ISiteMapping` lookup.
+
+    We'll then look a registered persistent site having the same name as the
+    registered global components found for *site_names*, then that site will be
+    used. Otherwise, if there is only a registered global components, a
+    non-persistent site that incorporates those components in the lookup order
+    while still incorporating the current (or provided) site will be returned.
 
     If no such site or components can be found, returns the fallback
     site (the current or provided *site*).
@@ -89,10 +92,10 @@ def get_site_for_site_names(site_names, site=None):
     # Can we find a named site to use?
     site_components = None
     if site_names:
-        site_components = find_site_components(site_names)
+        # First look for an ISiteMapping
+        site_components = find_site_components(site_names, check_alternate=True)
         if not site_components:
-            # Ok, let's look for an ISiteMapping
-            site_components = find_site_components(site_names, check_alternate=True)
+            site_components = find_site_components(site_names)
     if site_components:
         # Yes we can.
         site_name = site_components.__name__

@@ -368,7 +368,30 @@ class TestSiteSync(unittest.TestCase):
             # Mapped
             site_mapping = SiteMapping(source_site_name=transient_site,
                                        target_site_name=DEMOALPHA.__name__)
-            BASE.registerUtility(site_mapping, provided=ISiteMapping, name=transient_site)
+            BASE.registerUtility(site_mapping,
+                                 provided=ISiteMapping,
+                                 name=transient_site)
 
-            result = get_site_for_site_names((transient_site,))
-            assert_that(result, is_(same_instance(sites[DEMOALPHA.__name__])))
+            for site_name in (transient_site, DEMOALPHA.__name__):
+                result = get_site_for_site_names((site_name,))
+                assert_that(result, is_(same_instance(sites[DEMOALPHA.__name__])))
+
+            # We can also map persistent sites.
+            site_mapping = SiteMapping(source_site_name=DEMOALPHA.__name__,
+                                       target_site_name=DEMO.__name__)
+            try:
+                BASE.registerUtility(site_mapping,
+                                     provided=ISiteMapping,
+                                     name=DEMOALPHA.__name__)
+
+                for site_name in (DEMO.__name__, DEMOALPHA.__name__):
+                    result = get_site_for_site_names((site_name,))
+                    assert_that(result, is_(same_instance(sites[DEMO.__name__])))
+
+                # This isn't transitive however.
+                result = get_site_for_site_names((transient_site,))
+                assert_that(result, is_(same_instance(sites[DEMOALPHA.__name__])))
+            finally:
+                BASE.unregisterUtility(site_mapping,
+                                       name=DEMOALPHA.__name__,
+                                       provided=ISiteMapping)
