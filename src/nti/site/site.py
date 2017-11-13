@@ -83,6 +83,13 @@ def get_site_for_site_names(site_names, site=None):
         to use.
     :keyword site: If given, this will be the fallback site (and site manager). If
         not given, then the currently installed site will be used.
+
+    .. versionchanged:: 1.2.0
+        Look for a :class:`ISiteMapping` registration to map a
+        non-persistent site to a persistent site.
+    .. versionchanged:: 1.3.0
+        Prioritize :class:`ISiteMapping` so that persistent sites can be mapped
+        to other persistent sites.
     """
 
     if site is None:
