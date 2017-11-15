@@ -10,9 +10,11 @@ TESTS_REQUIRE = [
     'zope.testrunner',
 ]
 
+
 def _read(fname):
     with codecs.open(fname, encoding='utf-8') as f:
         return f.read()
+
 
 setup(
     name='nti.site',
@@ -44,14 +46,14 @@ setup(
     namespace_packages=['nti'],
     tests_require=TESTS_REQUIRE,
     install_requires=[
-        'BTrees >= 4.3.2', # permissive get()
+        'BTrees >= 4.3.2',  # permissive get()
         'ZODB',
         'nti.schema',
         'nti.transactions',
         'persistent',
         'setuptools',
         'six',
-        'transaction >= 2.1.1', # for looser text/byte handling
+        'transaction >= 2.1.1',  # for looser text/byte handling
         'zope.component',
         'zope.container',
         'zope.interface >= 4.4.2',
@@ -62,5 +64,10 @@ setup(
     ],
     extras_require={
         'test': TESTS_REQUIRE,
+        'docs': [
+            'Sphinx',
+            'repoze.sphinx.autointerface',
+            'sphinx_rtd_theme',
+        ]
     },
 )
