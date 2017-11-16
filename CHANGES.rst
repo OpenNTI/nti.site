@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.3.0 (unreleased)
+1.3.0 (2017-11-16)
 ==================
 
 - Allow ``ISiteMapping`` to map between persistent sites.
