@@ -9,6 +9,7 @@ include babel.cfg
 include nose2.cfg
 include tox.ini
 include *.txt
+include .pylintrc
 recursive-include doc *.py
 recursive-include doc *.rst
 recursive-include doc Makefile
