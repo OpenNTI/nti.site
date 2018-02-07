@@ -123,12 +123,12 @@ def synchronize_host_policies():
                 logger.info("Installing site policy %s", name)
 
                 site = HostPolicyFolder()
-                # should fire object created event
-                sites[name] = site
                 # Some comps are marked a certain way, we want to apply this
                 # to the site itself.
                 if IClientSite.providedBy(comps):
                     interface.alsoProvides(site, IClientSite)
+                # should fire object created event
+                sites[name] = site
 
                 site_policy = HostPolicySiteManager(site)
                 site_policy.__bases__ = (comps, secondary_comps)
