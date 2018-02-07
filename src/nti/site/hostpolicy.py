@@ -11,13 +11,11 @@ This contains the main unique functionality for this package.
 from __future__ import print_function, unicode_literals, absolute_import, division
 __docformat__ = "restructuredtext en"
 
-logger = __import__('logging').getLogger(__name__)
-
 from six import string_types
 
-from zope import lifecycleevent
 from zope import component
 from zope import interface
+from zope import lifecycleevent
 
 from zope.component.hooks import site as current_site
 from zope.component.interfaces import IComponents
@@ -28,15 +26,19 @@ from zope.interface.interfaces import ComponentLookupError
 
 from zope.traversing.interfaces import IEtcNamespace
 
-
 from zope.site.folder import Folder
 from zope.site.folder import rootFolder
 
-from .folder import HostPolicyFolder
-from .folder import HostPolicySiteManager
-from .folder import HostSitesFolder
-from .interfaces import IMainApplicationFolder
-from .site import BTreeLocalSiteManager
+from nti.site.folder import HostSitesFolder
+from nti.site.folder import HostPolicyFolder
+from nti.site.folder import HostPolicySiteManager
+
+from nti.site.interfaces import IClientSite
+from nti.site.interfaces import IMainApplicationFolder
+
+from nti.site.site import BTreeLocalSiteManager
+
+logger = __import__('logging').getLogger(__name__)
 
 
 def synchronize_host_policies():
@@ -123,6 +125,10 @@ def synchronize_host_policies():
                 site = HostPolicyFolder()
                 # should fire object created event
                 sites[name] = site
+                # Some comps are marked a certain way, we want to apply this
+                # to the site itself.
+                if IClientSite.providedBy(comps):
+                    interface.alsoProvides(site, IClientSite)
 
                 site_policy = HostPolicySiteManager(site)
                 site_policy.__bases__ = (comps, secondary_comps)

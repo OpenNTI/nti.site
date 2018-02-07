@@ -11,7 +11,12 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+from zope import component
 from zope import interface
+
+from zope.securitypolicy.interfaces import IPrincipalRoleManager
+
+from zope.securitypolicy.principalrole import AnnotationPrincipalRoleManager
 
 from zope.site.folder import Folder
 
@@ -56,3 +61,9 @@ class HostPolicySiteManager(BTreeLocalSiteManager):
             return super(HostPolicySiteManager, self).__repr__()
         except ConnectionStateError:
             return object.__repr__(self)
+
+
+@component.adapter(IHostPolicyFolder)
+@interface.implementer(IPrincipalRoleManager)
+class SitePrincipalRoleManager(AnnotationPrincipalRoleManager):
+    pass

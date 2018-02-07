@@ -8,7 +8,6 @@ __docformat__ = "restructuredtext en"
 # pylint: disable=W0212,R0904
 
 from hamcrest import is_
-from hamcrest import any_of
 from hamcrest import is_not
 from hamcrest import raises
 from hamcrest import calling
@@ -19,6 +18,7 @@ from hamcrest import has_length
 from hamcrest import assert_that
 from hamcrest import has_property
 from hamcrest import same_instance
+from hamcrest import contains_inanyorder
 does_not = is_not
 
 import unittest
@@ -36,6 +36,7 @@ from zope.component.hooks import site as currentSite
 
 from zope.location.interfaces import LocationError
 
+from nti.site.interfaces import IClientSite
 from nti.site.interfaces import ISiteMapping
 from nti.site.interfaces import IHostPolicyFolder
 
@@ -165,7 +166,13 @@ DEMOALPHA = BaseComponents(DEMO,
                            name='demo-alpha.nextthoughttest.com',
                            bases=(DEMO,))
 
-_SITES = (EVAL, EVALALPHA, DEMO, DEMOALPHA)
+ALPHACHILD11 = BaseComponents(EVAL,
+                              name='alpha-child11.nextthought.com',
+                              bases=(EVAL,))
+
+interface.alsoProvides(ALPHACHILD11, IClientSite)
+
+_SITES = (EVAL, EVALALPHA, DEMO, DEMOALPHA, ALPHACHILD11)
 
 from zope.component.interfaces import ISite
 from zope.component.interfaces import IComponents
@@ -320,29 +327,30 @@ class TestSiteSync(unittest.TestCase):
                              u'PNone',
                              'base']))
 
-            # including if we ask to travers from top to bottom
+            expected_site_names = [u'Peval.nextthoughttest.com',
+                                   u'Pdemo.nextthoughttest.com',
+                                   u'Peval-alpha.nextthoughttest.com',
+                                   u'Pdemo-alpha.nextthoughttest.com',
+                                   u'Palpha-child11.nextthought.com']
+
+            # including if we ask to traverse from top to bottom
             names = list()
             def func():
                 names.append(_name(component.getSiteManager()))
 
             run_job_in_all_host_sites(func)
-            # Note that PDemo and Peval-alpha are arbitrary, they both
-            # descend from eval;
-            # TODO: why aren't we maintaining alphabetical order?
-            # we should be, but sometimes we don't
-            assert_that(names, is_(any_of(
-                [u'Peval.nextthoughttest.com',
-                 u'Pdemo.nextthoughttest.com',
-                 u'Peval-alpha.nextthoughttest.com',
-                 u'Pdemo-alpha.nextthoughttest.com'],
-                [u'Peval.nextthoughttest.com',
-                 u'Peval-alpha.nextthoughttest.com',
-                 u'Pdemo.nextthoughttest.com',
-                 u'Pdemo-alpha.nextthoughttest.com'])))
+            # Note that child sites are arbitrarily ordered
+            assert_that(names, has_length(len(_SITES)))
+            assert_that(names[0], is_(u'Peval.nextthoughttest.com'))
+            assert_that(names, contains_inanyorder(*expected_site_names))
 
             # And that it's what we get back if we ask for it
             assert_that(get_site_for_site_names((DEMOALPHA.__name__,)),
                          is_(same_instance(sites[DEMOALPHA.__name__])))
+
+            # Client site
+            child_site = get_site_for_site_names((ALPHACHILD11.__name__,))
+            assert_that(IClientSite.providedBy(child_site), is_(True))
 
         # No new sites created
         assert_that(self._events, has_length(len(_SITES)))

@@ -40,7 +40,6 @@ class SiteNotInstalledError(AssertionError):
     This is most often caused by not installing the zope.component hooks.
     """
 
-
 class IMainApplicationFolder(IFolder):
     """
     The folder representing the application. The set of persistent
@@ -79,6 +78,13 @@ class IHostSitesFolder(IFolder):
     lastSynchronized = Number(title=u"The timestamp at which this object was last synchronized .",
                               default=0.0)
     lastSynchronized.setTaggedValue('_ext_excluded_out', True)
+
+
+class IClientSite(interface.Interface):
+    """
+    A marker interface for sites that are intended to operate as nearly
+    standalone, self-contained sites.
+    """
 
 
 class ITransactionSiteNames(interface.Interface):
