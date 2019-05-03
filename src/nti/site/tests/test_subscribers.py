@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, absolute_import, division
-__docformat__ = "restructuredtext en"
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
@@ -15,23 +16,27 @@ from hamcrest import calling
 from hamcrest import assert_that
 does_not = is_not
 
-from nti.testing.base import AbstractTestBase
 import fudge
 
 from zope.interface import implementer
 
 from zope.component import globalSiteManager as BASE
+
 from zope.component.hooks import getSite
 
 from z3c.baseregistry.baseregistry import BaseComponents
 
+from zope.site.interfaces import IRootFolder
+
+from nti.site.interfaces import IMainApplicationFolder
+
+from nti.site.subscribers import threadSiteSubscriber
+
 from nti.site.transient import HostSiteManager as HSM
 from nti.site.transient import TrivialSite
 
-from zope.site.interfaces import IRootFolder
-from ..interfaces import IMainApplicationFolder
+from nti.testing.base import AbstractTestBase
 
-from ..subscribers import threadSiteSubscriber
 
 class TestSubscriber(AbstractTestBase):
 

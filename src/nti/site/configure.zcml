@@ -19,6 +19,7 @@
     The zope.site version is registered by zope.app.publication
     -->
     <subscriber handler=".subscribers.threadSiteSubscriber" />
+    <subscriber handler=".subscribers._on_site_removed" />
 
     <subscriber handler=".subscribers.new_local_site_dispatcher" />
 
