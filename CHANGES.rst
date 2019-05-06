@@ -2,7 +2,7 @@
  Changes
 =========
 
-1.4.0 (unreleased)
+1.4.0 (2019-05-06)
 ==================
 
 - Add subscriber to unregister ``IBaseComponents`` on host policy folder
