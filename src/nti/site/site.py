@@ -379,9 +379,10 @@ class SiteMapping(SchemaConfigured):
         """
         Returns the target site as defined by this mapping.
         """
+        current_site = getSite()
         site_names = (self.target_site_name,)
-        result = get_site_for_site_names(site_names, site=None)
-        if result is None:
+        result = get_site_for_site_names(site_names, site=current_site)
+        if result is current_site:
             # Invalid mapping
             raise SiteNotFoundError("No site found for %s" % self.target_site_name)
         return result
