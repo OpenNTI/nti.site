@@ -16,6 +16,7 @@ from hamcrest import assert_that
 from hamcrest import has_property
 from hamcrest import same_instance
 from hamcrest import none
+from hamcrest import not_none
 from hamcrest import has_length
 does_not = is_not
 
@@ -32,11 +33,15 @@ from zope.component.hooks import getSite
 from zope.component.hooks import setSite
 from zope.component.hooks import site as currentSite
 
+from zope.component.interfaces import IComponents
+
 from zope.location.interfaces import LocationError
 
 from zope.component import globalSiteManager as BASE
 
 from z3c.baseregistry.baseregistry import BaseComponents
+
+from nti.site.folder import HostSitesFolder
 
 from nti.site.interfaces import IHostPolicyFolder
 from nti.site.subscribers import threadSiteSubscriber
@@ -143,6 +148,29 @@ class TestSiteSubscriber(unittest.TestCase):
 
             # ... which does not change the site
             assert_that(getSite(), is_(same_instance(new_site)))
+
+    def test_components_unregister_on_site_removal(self):
+        site_folder = HostSitesFolder()
+        new_site = MockSite()
+        interface.alsoProvides(new_site, IHostPolicyFolder)
+        key = 'new_site_name'
+        site_folder[key] = new_site
+        new_site_components = BaseComponents(BASE, 'new_site_name', (BASE,))
+        current_site_manager = getSite().getSiteManager()
+        current_site_manager.registerUtility(new_site_components,
+                                             name=key,
+                                             provided=IComponents)
+
+        assert_that(current_site_manager.queryUtility(IComponents, name=key),
+                    not_none())
+        del site_folder[key]
+        assert_that(current_site_manager.queryUtility(IComponents, name=key),
+                    none())
+
+        # Safe without registered components
+        site_folder[key] = new_site
+        del site_folder[key]
+
 
 class TestGetSiteForSiteNames(AbstractTestBase):
 

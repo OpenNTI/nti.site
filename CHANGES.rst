@@ -2,10 +2,11 @@
  Changes
 =========
 
-1.3.1 (unreleased)
+1.4.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Add subscriber to unregister ``IBaseComponents`` on host policy folder
+  removal.
 
 
 1.3.0 (2017-11-16)

@@ -23,7 +23,11 @@ from zope import component
 from zope.component.hooks import getSite
 from zope.component.hooks import setSite
 
+from zope.interface.interfaces import IComponents
+
 from zope.component.interfaces import ISite
+
+from zope.lifecycleevent.interfaces import IObjectRemovedEvent
 
 from zope.location.interfaces import LocationError
 
@@ -39,6 +43,9 @@ from nti.site.interfaces import IHostPolicyFolder
 from nti.site.interfaces import IMainApplicationFolder
 
 from nti.site.transient import BasedSiteManager
+
+from nti.site.utils import unregisterUtility
+
 
 class _ProxyTraversedSite(ProxyBase):
     """
@@ -155,3 +162,18 @@ def new_local_site_dispatcher(event):
     event, but the event will have the ISite as the object property.
     """
     component.handle(event.manager, event)
+
+
+@component.adapter(IHostPolicyFolder, IObjectRemovedEvent)
+def _on_site_removed(site, unused_event=None):
+    """
+    Unregister the ``IBaseComponents`` for a removed site.
+    .. versionadded:: 1.4.0
+    """
+    name = site.__name__
+    site_components = component.queryUtility(IComponents, name=name)
+    if site_components is not None:
+        unregisterUtility(component.getSiteManager(),
+                          site_components,
+                          IComponents,
+                          name=name)
