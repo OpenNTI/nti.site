@@ -46,11 +46,11 @@ from nti.site.folder import HostSitesFolder
 from nti.site.interfaces import IHostPolicyFolder
 from nti.site.subscribers import threadSiteSubscriber
 from nti.site.transient import HostSiteManager as HSM
-from ..transient import TrivialSite
-from ..site import get_site_for_site_names
-from ..site import find_site_components
-from ..site import get_component_hierarchy
-from ..site import get_component_hierarchy_names
+from nti.site.transient import TrivialSite
+from nti.site.site import get_site_for_site_names
+from nti.site.site import find_site_components
+from nti.site.site import get_component_hierarchy
+from nti.site.site import get_component_hierarchy_names
 
 from nti.site.tests import SharedConfiguringTestLayer
 
@@ -229,10 +229,9 @@ class TestGetComponentHierarchy(AbstractTestBase):
         x = list(get_component_hierarchy_names(site, reverse=True))
         assert_that(x, is_(['1', '2']))
 
-from ..site import BTreeLocalSiteManager as BLSM
-from ..site import _LocalAdapterRegistry
-from ..site import BTreeLocalAdapterRegistry
-from ..site import WrongRegistrationTypeError
+from nti.site.site import BTreeLocalSiteManager as BLSM
+from nti.site.site import _LocalAdapterRegistry
+from nti.site.site import BTreeLocalAdapterRegistry
 
 from ZODB import DB
 from ZODB.DemoStorage import DemoStorage
@@ -581,6 +580,27 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.registerAdapter(
                            _foo_factory,
                            required=(object, type('str')),
+                           provided=IFoo)
+
+        x = comps.getMultiAdapter((object(), 'str'), IFoo)
+        assert_that(x, is_(1))
+
+    def test_convert_mark_self_changed(self):
+        comps = BLSM(None)
+
+        comps.btree_threshold = 0
+        comps.adapters.btree_map_threshold = 1
+        comps.adapters.btree_provided_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+
+        comps.registerAdapter(
+                           _foo_factory,
+                           required=(object, type('str')),
+                           provided=IFoo)
+
+        comps.registerAdapter(
+                           _foo_factory2,
+                           required=(object, type(0)),
                            provided=IFoo)
 
         x = comps.getMultiAdapter((object(), 'str'), IFoo)

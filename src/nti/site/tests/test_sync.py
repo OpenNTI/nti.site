@@ -37,6 +37,7 @@ from zope.component.hooks import site as currentSite
 from zope.location.interfaces import LocationError
 
 from nti.site.interfaces import ISiteMapping
+from nti.site.interfaces import SiteNotFoundError
 from nti.site.interfaces import IHostPolicyFolder
 
 from nti.site.site import SiteMapping
@@ -371,10 +372,18 @@ class TestSiteSync(unittest.TestCase):
             BASE.registerUtility(site_mapping,
                                  provided=ISiteMapping,
                                  name=transient_site)
+            assert_that(site_mapping.get_target_site(),
+                        is_(same_instance(sites[DEMOALPHA.__name__])))
 
             for site_name in (transient_site, DEMOALPHA.__name__):
                 result = get_site_for_site_names((site_name,))
                 assert_that(result, is_(same_instance(sites[DEMOALPHA.__name__])))
+
+            # Invalid mapping raises
+            site_mapping = SiteMapping(source_site_name=transient_site,
+                                       target_site_name=u'nonexistent_site')
+            assert_that(calling(site_mapping.get_target_site),
+                        raises(SiteNotFoundError))
 
             # We can also map persistent sites.
             site_mapping = SiteMapping(source_site_name=DEMOALPHA.__name__,
