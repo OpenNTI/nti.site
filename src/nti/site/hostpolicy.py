@@ -20,10 +20,10 @@ from zope import component
 from zope import interface
 
 from zope.component.hooks import site as current_site
-from zope.component.interfaces import IComponents
 from zope.component.interfaces import ISite
 
 from zope.interface import ro
+from zope.interface.interfaces import IComponents
 from zope.interface.interfaces import ComponentLookupError
 
 from zope.traversing.interfaces import IEtcNamespace

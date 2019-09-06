@@ -22,13 +22,12 @@ import transaction
 
 from zope import component
 from ZODB.interfaces import IDatabase
-from ZODB.Connection import Connection
+
 import ZODB.DB
 from ZODB.DemoStorage import DemoStorage
 from zope.site import SiteManagerContainer
 
-from ..runner import _connection_cm
-from ..runner import _site_cm
+
 from ..runner import run_job_in_site
 from ..runner import _tx_string
 
@@ -36,45 +35,6 @@ from ..transient import TrivialSite
 
 from ..interfaces import SiteNotInstalledError
 
-
-
-class TestConnectionCM(base.AbstractTestBase):
-
-    def test_connection_cm(self):
-        db = ZODB.DB(DemoStorage(name='base'))
-        component.provideUtility(db, IDatabase)
-
-        with _connection_cm() as c:
-            assert_that(c, is_(Connection))
-
-class TestSiteCM(base.AbstractTestBase):
-
-    def test_site_cm(self):
-        class MockConn(object):
-            def __init__(self):
-                self._root = {}
-            def root(self):
-                return self._root
-
-        c = MockConn()
-        c._root[u'nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
-        with _site_cm(c, ('abc',)) as sitemanc:
-            assert_that(sitemanc, is_(c._root[u'nti.dataserver']))
-
-    def test_site_cm_not_installed(self):
-        class MockConn(object):
-            def __init__(self):
-                self._root = {}
-            def root(self):
-                return self._root
-
-        c = MockConn()
-        c._root[u'nti.dataserver'] = TrivialSite(None)
-        try:
-            with _site_cm(c, ('abc',)):
-                self.fail("Should not get here")
-        except SiteNotInstalledError:
-            pass
 
 class TestRunner(base.AbstractTestBase):
 
@@ -89,6 +49,45 @@ class TestRunner(base.AbstractTestBase):
 
         transaction.commit()
         conn.close()
+
+    def test_site_cm_success(self):
+        class MockConn(object):
+            def __init__(self):
+                self._root = {}
+            def root(self):
+                return self._root
+
+        c = MockConn()
+        c._root[u'nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
+        def handler():
+            return 42
+
+        result = run_job_in_site(handler)
+        self.assertEqual(result, 42)
+
+    def test_site_cm_not_installed(self):
+        class MockConn(object):
+            def __init__(self):
+                self._root = {}
+            def root(self):
+                return self._root
+            closed = False
+            def close(self):
+                self.closed = True
+
+        c = MockConn()
+        c._root[u'nti.dataserver'] = TrivialSite(None)
+
+        class MockDB(object):
+            def open(self):
+                return c
+
+        component.provideUtility(MockDB(), IDatabase)
+
+        with self.assertRaises(SiteNotInstalledError):
+            run_job_in_site(lambda: None)
+
+        self.assertTrue(c.closed)
 
     def test_run_description(self):
         expected_desc = None
@@ -114,6 +113,18 @@ class TestRunner(base.AbstractTestBase):
         expected_desc = None
         run_job_in_site(lambda: None)
 
+    def test_connection_opened_in_explicit_mode(self):
+        from nti.site.runner import _RunJobInSite
+        test = self
+        class Loop(_RunJobInSite):
+            def run_handler(self, *args, **kwargs):
+                test.assertTrue(self._connection.explicit_transactions)
+                return 42
+
+        result = Loop(lambda: None, site_names=(), job_name='', side_effect_free=False,
+                      root_folder_name='nti.dataserver')()
+        self.assertEqual(result, 42)
+
     def test_run_missing_name_doc(self):
         # Issue 16
         class Callable(object):
@@ -121,7 +132,7 @@ class TestRunner(base.AbstractTestBase):
             def __getattribute__(self, name):
                 if name in ('__doc__', '__name__'):
                     raise AttributeError(name)
-                return object.__getattrribute__(self, name)
+                return object.__getattribute__(self, name)
 
             def __call__(self):
                 assert_that(transaction.get().description, is_(''))

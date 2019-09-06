@@ -17,7 +17,7 @@ from zope import interface
 
 from zope.component.hooks import getSite
 
-from zope.component.interfaces import IComponents
+from zope.interface.interfaces import IComponents
 
 from persistent import Persistent
 
