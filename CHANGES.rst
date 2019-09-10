@@ -2,7 +2,7 @@
  Changes
 =========
 
-2.0.0 (unreleased)
+2.0.0 (2019-09-10)
 ==================
 
 - Update ``run_job_in_site`` to work with nti.transactions 3.0 and
