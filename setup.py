@@ -33,9 +33,8 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
@@ -49,11 +48,11 @@ setup(
         'BTrees >= 4.3.2',  # permissive get()
         'ZODB',
         'nti.schema',
-        'nti.transactions',
+        'nti.transactions >= 3.0.0',
         'persistent',
         'setuptools',
         'six',
-        'transaction >= 2.1.1',  # for looser text/byte handling
+        'transaction >= 2.4.0',  # for looser text/byte handling
         'zope.component',
         'zope.container',
         'zope.interface >= 4.4.2',

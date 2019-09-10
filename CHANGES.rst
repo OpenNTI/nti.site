@@ -2,11 +2,17 @@
  Changes
 =========
 
-1.4.1 (unreleased)
+2.0.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Update ``run_job_in_site`` to work with nti.transactions 3.0 and
+  enable the optimizations of an explicit transaction manager.
 
+- Test support for Python 3.7.
+
+- Stop claiming support for Python 3.4 or 3.5; those aren't tested.
+
+- Test support for PyPy3.
 
 1.4.0 (2019-05-06)
 ==================

@@ -8,10 +8,8 @@ Helpers for running jobs in specific sites.
 from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
-logger = __import__('logging').getLogger(__name__)
-
 import warnings
-import contextlib
+
 
 from zope import component
 from zope import interface
@@ -20,6 +18,8 @@ from zope.component.hooks import site as current_site
 
 from ZODB.interfaces import IDatabase
 
+from nti.transactions.transactions import TransactionLoop
+
 from nti.site.interfaces import SiteNotInstalledError
 
 from nti.site.interfaces import ITransactionSiteNames
@@ -27,52 +27,19 @@ from nti.site.interfaces import ISiteTransactionRunner
 
 from nti.site.site import get_site_for_site_names
 
-@contextlib.contextmanager
-def _connection_cm():
-    """
-    Opens a connection to the default database.
-    """
-    db = component.getUtility(IDatabase)
-    conn = db.open()
-    for c in conn.connections.values():
-        c.setDebugInfo("_connection_cm")
-    try:
-        yield conn
-    finally:
-        conn.close()
+logger = __import__('logging').getLogger(__name__)
 
-@contextlib.contextmanager
-def _site_cm(conn, site_names=(), root_folder_name=u'nti.dataserver'):
-    # If we don't sync, then we can get stale objects that
-    # think they belong to a closed connection
-    # TODO: Are we doing something in the wrong order? Connection
-    # is an ISynchronizer and registers itself with the transaction manager,
-    # so we shouldn't have to do this manually
-    # ... I think the problem was a bad site. I think this can go away.
-    # conn.sync()
-    # In fact, it must go away; if we sync the conn, we lose the
-    # current transaction
-    sitemanc = conn.root()[root_folder_name]
-    # Put into a policy if need be
-    sitemanc = get_site_for_site_names(site_names, sitemanc)
-
-    with current_site(sitemanc):
-        if component.getSiteManager() != sitemanc.getSiteManager():
-            raise SiteNotInstalledError("Hooks not installed?")
-        # XXX: Used to do this check...is it really needed?
-        # if component.getUtility( interfaces.IDataserver ) is None:
-        #   raise InappropriateSiteError()
-        yield sitemanc
-
-from nti.transactions.transactions import TransactionLoop
 
 # transaction >= 2 < 2.1.1 needs text; Transaction 1 wants
-# bytes (generally). Transaction 2.1.1 and above will work with either.
+# bytes (generally). Transaction 2.1.1 and above will work with either,
+# but text is preferred.
 def _tx_string(s):
     return s.decode('utf-8', 'replace') if isinstance(s, bytes) else s
 
 
 class _RunJobInSite(TransactionLoop):
+
+    _connection = None
 
     def __init__(self, *args, **kwargs):
         self.site_names = kwargs.pop('site_names')
@@ -100,30 +67,30 @@ class _RunJobInSite(TransactionLoop):
 
         return note
 
-    def run_handler(self, conn, *args, **kwargs):
-        with _site_cm(conn, self.site_names, self.root_folder_name):
-            for c in conn.connections.values():
-                c.setDebugInfo(self.site_names)
-            result = self.handler(*args, **kwargs)
+    def run_handler(self, *args, **kwargs): # pylint:disable=arguments-differ
+        sitemanc = self._connection.root()[self.root_folder_name]
+        # Put into a policy if need be
+        sitemanc = get_site_for_site_names(self.site_names, sitemanc)
 
-            # Commit the transaction while the site is still current
-            # so that any before-commit hooks run with that site
-            # (Though this has the problem that after-commit hooks would have an invalid
-            # site!)
-            # JAM: DISABLED because the pyramid requests never ran like this:
-            # they commit after they are done and the site has been removed
-            # t.commit()
+        with current_site(sitemanc):
+            if component.getSiteManager() != sitemanc.getSiteManager():
+                raise SiteNotInstalledError("Hooks not installed?")
+            return self.handler(*args, **kwargs)
 
-            return result
+    def setUp(self):
+        # After the transaction manager has been put into explicit
+        # mode, open the connection. This lets it perform certain
+        # optimizations.
+        db = component.getUtility(IDatabase)
+        self._connection = db.open()
 
-    def __call__(self, *args, **kwargs):
-        with _connection_cm() as conn:
-            for c in conn.connections.values():
-                c.setDebugInfo(self.describe_transaction(*args, **kwargs))
-            # Notice we don't keep conn as an ivar anywhere, to avoid
-            # any chance of circular references. These need to be sure to be
-            # reclaimed
-            return super(_RunJobInSite, self).__call__(conn, *args, **kwargs)
+    def tearDown(self):
+        if self._connection is not None:
+            try:
+                self._connection.close()
+            finally:
+                self._connection = None
+
 
 _marker = object()
 
@@ -163,12 +130,14 @@ def run_job_in_site(func,
     else:
         site_names = get_possible_site_names()
 
-    return _RunJobInSite( func,
-                          retries=retries,
-                          sleep=sleep,
-                          site_names=site_names,
-                          job_name=job_name,
-                          side_effect_free=side_effect_free,
-                          root_folder_name=root_folder_name)()
+    return _RunJobInSite(
+        func,
+        retries=retries,
+        sleep=sleep,
+        site_names=site_names,
+        job_name=job_name,
+        side_effect_free=side_effect_free,
+        root_folder_name=root_folder_name
+    )()
 
 run_job_in_site.__doc__ = ISiteTransactionRunner['__call__'].getDoc()
