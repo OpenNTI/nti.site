@@ -15,6 +15,8 @@ logger = __import__('logging').getLogger(__name__)
 
 from six import string_types
 
+from z3c.baseregistry.baseregistry import BaseComponents
+
 from zope import lifecycleevent
 from zope import component
 from zope import interface
@@ -40,6 +42,7 @@ from .site import BTreeLocalSiteManager
 
 
 def synchronize_host_policies():
+    from IPython.core.debugger import Tracer; Tracer()()
     """
     Called within a transaction with a site being the current application
     site, find any :mod:`z3c.baseregistry` components that
@@ -120,15 +123,83 @@ def synchronize_host_policies():
                 # Great, create the site
                 logger.info("Installing site policy %s", name)
 
-                site = HostPolicyFolder()
-                # should fire object created event
-                sites[name] = site
+                site = install_host_site(name,  (comps, secondary_comps), sites)
+                secondary_comps = site_policy.getSiteManager()
 
-                site_policy = HostPolicySiteManager(site)
-                site_policy.__bases__ = (comps, secondary_comps)
-                # should fire INewLocalSite
-                site.setSiteManager(site_policy)
-                secondary_comps = site_policy
+def synchronize_base_components():
+    sites = component.getUtility(IEtcNamespace, name='hostsites')
+    global_sm = component.getGlobalSiteManager()
+    ds_folder = sites.__parent__
+    ds_site_manager = ds_folder.getSiteManager()
+
+    for site_name in sites:
+        if global_sm.queryUtility(IComponents, name=site_name) is not None:
+            continue
+
+        # We have a persistent site, but we don't have a globally registerd IComponents
+        # That means one of two things at this point
+        #   a) IComponents was registered globally
+        #   for this persistent site at one point and now it is not. In that case the old BaseComponents
+        #   is probably in our __bases__ and we get a ComponentLookupError when it is unpickled
+        #   b) Global IComponents never existed because this was a site created entirely at runtime.
+        #   this seems like it should be ok, but much of nti.site.site depends on finding globally registered
+        #   IComponents for all persistent sites. In this case we register one globally so everything works
+        #   this seems like a big hack, and our reliance on every site having non-persistent IComponents should go away
+        # We try to leave case a alone and only create our global IComponents for case b. We detect that by looking
+        # at the sitemanagers bases. If it has a BaseComponents in it or it raises a ComponentLookUpErrror we move on.
+        # FIXME This feels really inapprorpiately coupled, how else could we detect when we need to do this? Mark
+        # dynamically created sites with an interface.
+        site_folder = sites[site_name]
+        try:
+            bases = site_folder.getSiteManager().__bases__
+        except ComponentLookupError:
+            logger.warn('Found a persistent site %s we cant load. Removed previously registered IComponents?', site_name)
+            continue
+
+        logger.info('Creating tranisent BaseComponents for %s', site_name)
+
+        # TODO Do we actually need to look at bases here? It doesn't seem like we could
+        # not have found a global IComponents for our name and not had a BaseComponent in bases
+        # unless something else mucked with bases...
+
+        # Supposedly this puts us in state a, in which case right now we now bases should be
+        # a base BaseComponents like genericadultbase, and the dssitemanager.
+        # Again, tightly coupled, to how this was persistently created. what other states might we be in here?
+        assert len(bases) == 2
+
+        # We need a global IComponents registered by the same name as our persistent site
+        # It seems unlikely we can just reregister our first base under an additional name, the utility
+        # name and BaseComponents name won't match. So we create a new BaseComponent whose base
+        # is our first base (the BaseComponent set at creation)
+        # TODO What's the best way to guarentee we are in the state we think we are in and reduce coupling
+        bc_base = (bases[0],)
+
+        # TODO should we do a subclass of this so we can mark it as NoPickle?
+        new_bc = BaseComponents(bases[0], name=site_name, bases=bc_base)
+        global_sm.registerUtility(new_bc, IComponents, name=site_name)
+
+        # TODO Our persistent site base doesn't contain our now registered BaseComponent,
+        # it contains new_bc's base. What problems does this cause? We can't rewrite the
+        # persistent site bases without it being pickled and causing issues when we access the site after a restart
+        
+            
+
+def install_host_site(name, bases, sites=None):
+    if sites is None:
+        sites = component.getUtility(IEtcNamespace, name='hostsites')
+
+    logger.info("Installing host site %s", name)
+
+    site = HostPolicyFolder()
+    # should fire object created event
+    sites[name] = site
+
+    site_policy = HostPolicySiteManager(site)
+    site_policy.__bases__ = bases
+
+    # should fire INewLocalSite
+    site.setSiteManager(site_policy)
+    return site
 
 
 def install_sites_folder(server_folder):
