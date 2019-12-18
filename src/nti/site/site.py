@@ -320,7 +320,6 @@ class BTreePersistentComponents(PersistentComponents):
 
     def registerUtility(self, component=None, provided=None, name=u'', info=u'',
                         event=True, factory=None):
-        result = None
         result = super(BTreePersistentComponents, self).registerUtility(
             component, provided, name, info, event, factory)
         self._check_and_btree_map('_utility_registrations')
@@ -328,7 +327,6 @@ class BTreePersistentComponents(PersistentComponents):
         return result
 
     def registerAdapter(self, *args, **kwargs):
-        result = None
         result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
         self._check_and_btree_map('_adapter_registrations')
         return result
@@ -375,6 +373,8 @@ class SiteMapping(SchemaConfigured):
 
     createDirectFieldProperties(ISiteMapping)
 
+    mimeType = mime_type = "application/vnd.nextthought.sitemapping"
+
     def get_target_site(self):
         """
         Returns the target site as defined by this mapping.
@@ -387,6 +387,16 @@ class SiteMapping(SchemaConfigured):
             raise SiteNotFoundError("No site found for %s" % self.target_site_name)
         return result
 
+    def __repr__(self):
+        return "<%s (source=%s) (target=%s)>" % (self.__class__.__name__,
+                                                 self.source_site_name,
+                                                 self.target_site_name)
+
+
+class PersistentSiteMapping(Persistent, SiteMapping):
+    """
+    Maps one site to another persistently.
+    """
 
 # Legacy notes:
 # Opening the connection registered it with the transaction manager as an ISynchronizer.

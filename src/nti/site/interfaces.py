@@ -6,17 +6,21 @@ Site interfaces.
 .. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
-__docformat__ = "restructuredtext en"
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
 
-logger = __import__('logging').getLogger(__name__)
 from zope import interface
+
+from persistent.interfaces import IPersistent
 
 from zope.site.interfaces import IFolder
 from zope.site.interfaces import ILocalSiteManager
 
 from nti.schema.field import Number
 from nti.schema.field import TextLine
+
+logger = __import__('logging').getLogger(__name__)
 
 
 class InappropriateSiteError(LookupError):
@@ -157,3 +161,11 @@ class ISiteMapping(interface.Interface):
 
         :raises a :class:`SiteNotFoundError` object if no site found
         """
+
+
+class IPersistentSiteMapping(ISiteMapping, IPersistent):
+    """
+    Maps a site name to an alternate site. Useful when we do not want full
+    fledged persistent sites. Should only be used after checking for an
+    existing site.
+    """
