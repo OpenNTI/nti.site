@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
-__docformat__ = "restructuredtext en"
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
@@ -41,11 +42,13 @@ ZCML_STRING = """
 class TestZcml(ConfiguringTestBase):
 
     def test_registration(self):
+        # We store in lowercase to avoid case sensitivity issues.
+        # Lookups (from HTTP headers) are in lowercase.
         self.configure_string(ZCML_STRING)
-        site_mapping = component.queryUtility(ISiteMapping, name='mySite1')
+        site_mapping = component.queryUtility(ISiteMapping, name='mysite1')
         assert_that(site_mapping, not_none())
-        assert_that(site_mapping.source_site_name, is_('mySite1'))
-        assert_that(site_mapping.target_site_name, is_('mySite2'))
+        assert_that(site_mapping.source_site_name, is_('mysite1'))
+        assert_that(site_mapping.target_site_name, is_('mysite2'))
 
-        site_mapping = component.queryUtility(ISiteMapping, name='mySite2')
+        site_mapping = component.queryUtility(ISiteMapping, name='mysite2')
         assert_that(site_mapping, none())

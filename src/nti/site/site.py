@@ -278,6 +278,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
                 self._check_and_btree_maps(byorder)
         super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
 
+
 class BTreePersistentComponents(PersistentComponents):
     """
     Persistent components that will be friendly to ZODB when they get large.
@@ -320,7 +321,6 @@ class BTreePersistentComponents(PersistentComponents):
 
     def registerUtility(self, component=None, provided=None, name=u'', info=u'',
                         event=True, factory=None):
-        result = None
         result = super(BTreePersistentComponents, self).registerUtility(
             component, provided, name, info, event, factory)
         self._check_and_btree_map('_utility_registrations')
@@ -328,7 +328,6 @@ class BTreePersistentComponents(PersistentComponents):
         return result
 
     def registerAdapter(self, *args, **kwargs):
-        result = None
         result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
         self._check_and_btree_map('_adapter_registrations')
         return result
