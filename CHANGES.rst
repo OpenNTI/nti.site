@@ -5,7 +5,8 @@
 2.0.1 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Store and register ``ISiteMapping`` site names in lowercase to
+  avoid case-sensitive registry lookup issues.
 
 
 2.0.0 (2019-09-10)
