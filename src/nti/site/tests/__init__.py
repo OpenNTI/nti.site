@@ -115,9 +115,12 @@ class mock_db_trans(object):
         reset_db_caches(self.db)
         return result
 
+
 def reset_db_caches(db=None):
     if db is not None:
-        db.pool.map(lambda conn: conn.cacheMinimize())
+        for conn in db.pool:
+            conn.cacheMinimize()
+
 
 def _mock_ds_wrapper_for(func, db, teardown=None):
 
