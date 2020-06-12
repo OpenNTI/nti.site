@@ -5,7 +5,7 @@
 2.0.1 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Update test function to handle ZODB ``ConnectionPool`` objects now being iterable.
 
 
 2.0.0 (2019-09-10)
