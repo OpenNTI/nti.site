@@ -5,45 +5,33 @@ from __future__ import print_function, unicode_literals, absolute_import, divisi
 
 __docformat__ = "restructuredtext en"
 
-# disable: accessing protected members, too many methods
-# pylint: disable=W0212,R0904
-
-logger = __import__('logging').getLogger(__name__)
-
+import unittest
 import functools
+
 import transaction
 
+from ZODB.DemoStorage import DemoStorage
+from hamcrest import assert_that
+
+from nti.testing import zodb
+from nti.testing.layers import ConfiguringLayerMixin
+from nti.testing.layers import GCLayerMixin
+from nti.testing.layers import find_test
+from nti.testing.matchers import provides
 
 from zope import component
-
 from zope.component.hooks import setHooks
 from zope.component.hooks import site as currentSite
-
-
-
-from ..site import BTreeLocalSiteManager
-from ..hostpolicy import install_main_application_and_sites
 from zope.site import SiteManagerContainer
-
 import ZODB
-
-from ZODB.DemoStorage import DemoStorage
-
-from ..site import get_site_for_site_names
-
-from nti.testing.layers import find_test
-from nti.testing.layers import GCLayerMixin
-from nti.testing.layers import ZopeComponentLayer
-from nti.testing.layers import ConfiguringLayerMixin
-
-from hamcrest import assert_that
-from nti.testing.matchers import provides
-from ..interfaces import IMainApplicationFolder
-
 import zope.testing.cleanup
 
-current_mock_db = None
-current_transaction = None
+
+from ..hostpolicy import install_main_application_and_sites
+from ..interfaces import IMainApplicationFolder
+from ..site import BTreeLocalSiteManager
+from ..site import get_site_for_site_names
+
 
 root_name = u'nti.dataserver'
 
@@ -57,30 +45,22 @@ def install_main(conn):
 
 def init_db(db, conn=None):
     conn = db.open() if conn is None else conn
-    global current_transaction
-    if current_transaction != conn:
-        current_transaction = conn
     install_main(conn)
     return conn
 
-class mock_db_trans(object):
+class current_db_site_trans(zodb.mock_db_trans):
 
     def __init__(self, db=None, site_name=None):
-        self.db = db or current_mock_db
+        super(current_db_site_trans, self).__init__(db)
         self._site_cm = None
         self._site_name = site_name
 
-    def _check(self, conn):
+    def on_connection_opened(self, conn):
+        super(current_db_site_trans, self).on_connection_opened(conn)
+
         root = conn.root()
         if root_name not in root:
             install_main(conn)
-
-    def __enter__(self):
-        transaction.begin()
-        self.conn = conn = self.db.open()
-        global current_transaction
-        current_transaction = conn
-        self._check(conn)
 
         sitemanc = conn.root()[root_name]
         if self._site_name:
@@ -88,78 +68,61 @@ class mock_db_trans(object):
                 sitemanc = get_site_for_site_names((self._site_name,))
 
         self._site_cm = currentSite(sitemanc)
-        self._site_cm.__enter__()
+        self._site_cm.__enter__() # pylint:disable=no-member
         assert component.getSiteManager() == sitemanc.getSiteManager()
         return conn
 
     def __exit__(self, t, v, tb):
-        result = self._site_cm.__exit__(t, v, tb)
-        global current_transaction
-        body_raised = t is not None
-        try:
-            try:
-                if not transaction.isDoomed():
-                    transaction.commit()
-                else:
-                    transaction.abort()
-            except Exception:
-                transaction.abort()
-                raise
-            finally:
-                current_transaction = None
-                self.conn.close()
-        except Exception:
-            if not body_raised:
-                raise
-            logger.exception("Failed to cleanup trans, but body raised exception too")
-        reset_db_caches(self.db)
+        result = self._site_cm.__exit__(t, v, tb) # pylint:disable=no-member
+        super(current_db_site_trans, self).__exit__(t, v, tb)
         return result
 
-def reset_db_caches(db=None):
-    if db is not None:
-        db.pool.map(lambda conn: conn.cacheMinimize())
 
-def _mock_ds_wrapper_for(func, db, teardown=None):
+mock_db_trans = current_db_site_trans # BWC, remove in 2021
+reset_db_caches = zodb.reset_db_caches # BWC, remove in 2021
+
+def _mock_ds_wrapper_for(func, db):
 
     @functools.wraps(func)
     def f(*args):
-        global current_mock_db
-        current_mock_db = db
-        init_db(db)
+        old_db = zodb.ZODBLayer.db
+        try:
+            zodb.ZODBLayer.db = db
+            if SharedConfiguringTestLayer.current_test is not None:
+                SharedConfiguringTestLayer.current_test.db = db
+            # We created the DB fresh, so we know we will have to
+            # open a transaction to be able to set it up.
+            transaction.begin()
+            init_db(db)
+            transaction.commit()
 
-        sitemanc = SiteManagerContainer()
-        sitemanc.setSiteManager(BTreeLocalSiteManager(None))
+            sitemanc = SiteManagerContainer()
+            sitemanc.setSiteManager(BTreeLocalSiteManager(None))
 
-        with currentSite(sitemanc):
-            assert component.getSiteManager() == sitemanc.getSiteManager()
-            try:
+            with currentSite(sitemanc):
+                assert component.getSiteManager() == sitemanc.getSiteManager()
                 func(*args)
-            finally:
-                current_mock_db = None
-                if teardown:
-                    teardown()
-
+        finally:
+            db.close()
+            zodb.ZODBLayer.db = old_db
     return f
 
 def WithMockDS(*args, **kwargs):
-    teardown = lambda: None
     db = ZODB.DB(DemoStorage(name='Users'))
     if len(args) == 1 and not kwargs:
         # Being used as a plain decorator
         func = args[0]
-        return _mock_ds_wrapper_for(func, db, teardown)
-    return lambda func: _mock_ds_wrapper_for(func, db , teardown)
+        return _mock_ds_wrapper_for(func, db)
+    return lambda func: _mock_ds_wrapper_for(func, db)
 
 
-class SharedConfiguringTestLayer(ZopeComponentLayer,
+class SharedConfiguringTestLayer(zodb.ZODBLayer,
                                  GCLayerMixin,
                                  ConfiguringLayerMixin):
 
     set_up_packages = ('nti.site',)
 
-    @classmethod
-    def db(cls):
-        return current_mock_db
+    current_test = None
 
     @classmethod
     def setUp(cls):
@@ -190,16 +153,17 @@ class SharedConfiguringTestLayer(ZopeComponentLayer,
         zope.testing.cleanup.cleanUp()
 
     @classmethod
-    def testSetUp(cls, test=None):
+    def testSetUp(cls, test=None): # pylint:disable=arguments-differ
         setHooks()
-        test = test or find_test()
-        test.db = cls.db()
+        cls.current_test = test = test or find_test()
+        test.db = cls.db
 
     @classmethod
     def testTearDown(cls):
-        pass
+        cls.current_test.db = None
+        cls.current_test = None
 
-import unittest
+
 
 class SiteTestCase(unittest.TestCase):
     layer = SharedConfiguringTestLayer

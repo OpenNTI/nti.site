@@ -2,10 +2,18 @@
  Changes
 =========
 
-2.0.1 (unreleased)
+2.1.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Test changes: Depend on ``nti.testing`` 3.0 and refactor certain
+  internal test methods for improved isolation. The dependency on
+  ZODB is now >= 5.6.0.
+
+  Some internal, undocumented test attributes (``current_mock_db``, a
+  ZODB.DB, and ``current_transaction`` which was actually a ZODB
+  Connection) have been removed. The former is replaced with
+  ``nti.testing.zodb.ZODBLayer.db``, and there is no replacement for
+  the later.
 
 
 2.0.0 (2019-09-10)

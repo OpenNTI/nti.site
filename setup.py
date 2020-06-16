@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 TESTS_REQUIRE = [
     'fudge',
-    'nti.testing',
+    'nti.testing >= 3.0.0',
     'pyhamcrest',
     'z3c.baseregistry',
     'zope.testrunner',
@@ -47,7 +47,9 @@ setup(
     tests_require=TESTS_REQUIRE,
     install_requires=[
         'BTrees >= 4.3.2',  # permissive get()
-        'ZODB',
+        # test dependencies have this at >= 5.6.0; for consistency,
+        # do the same in regular deps.
+        'ZODB >= 5.6.0',
         'nti.schema',
         'nti.transactions >= 3.0.0',
         'persistent',
