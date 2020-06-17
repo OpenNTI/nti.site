@@ -184,8 +184,12 @@ class TestGetSiteForSiteNames(AbstractTestBase):
         trivial_site = PersistentTrivialSite(host_sm)
         fake_find.is_callable().returns(pers_comps)
 
-
-        x = get_site_for_site_names(('',), trivial_site)
+        from zope.interface.ro import C3
+        C3.STRICT_IRO = False
+        try:
+            x = get_site_for_site_names(('',), trivial_site)
+        finally:
+            C3.STRICT_IRO = C3.ORIG_STRICT_IRO
 
         assert_that(x, is_not(Persistent))
         assert_that(x, is_(TrivialSite))

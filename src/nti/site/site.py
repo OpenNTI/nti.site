@@ -137,6 +137,8 @@ def get_site_for_site_names(site_names, site=None):
             assert isinstance(site.getSiteManager(), Persistent)
 
             main_site = site
+            # XXX: This easily produces resolution orders that are
+            # inconsistent with C3. See test_site.test_no_persistent_site.
             site_manager = HostSiteManager(main_site.__parent__,
                                            main_site.__name__,
                                            site_components,

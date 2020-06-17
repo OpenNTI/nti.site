@@ -38,6 +38,7 @@ from .folder import HostSitesFolder
 from .interfaces import IMainApplicationFolder
 from .site import BTreeLocalSiteManager
 
+text_type = str if bytes is not str else unicode
 
 def synchronize_host_policies():
     """
@@ -133,8 +134,14 @@ def synchronize_host_policies():
 
 def install_sites_folder(server_folder):
     """
-    Given a :class:`.IMainApplicationFolder` that has a site manager,
+    Given a :class:`~.IMainApplicationFolder` that has a site manager,
     install a host sites folder.
+
+    The folder will be installed at "++etc++hostsites", and registered
+    to provide :class:`IEtcNamespace` with the name "hostsites" so it
+    can be found by traversal.
+
+    .. seealso:: `zope.traversing.namespace.etc`.
     """
     sites = HostSitesFolder()
     str(sites) # coverage
@@ -144,25 +151,99 @@ def install_sites_folder(server_folder):
     lsm.registerUtility(sites, provided=IEtcNamespace, name='hostsites')
     # synchronize_host_policies()
 
+class _StrDefault(object):
+    def __init__(self, val, description):
+        assert isinstance(val, text_type)
+        self.value = val
+        self.description = description
+
+    def __str__(self):
+        return self.value
+
+    __unicode__ = __str__
+
+    def __repr__(self):
+        return "<%r is the %s>" % (
+            self.value,
+            self.description
+        )
+
+    def __bool__(self):
+        # In the future, we can turn this to false for things
+        # we don't wish to install, such as the aliases.
+        return True
+
+    __nonzero__ = __bool__
+
+    __getstate__ = __reduce__ = None
+
+
+DEFAULT_ROOT_NAME = _StrDefault(
+    u'Application', "default root folder")
+DEFAULT_ROOT_ALIAS = _StrDefault(
+    u'nti.dataserver_root', "default alias of root folder")
+DEFAULT_MAIN_NAME = _StrDefault(
+    u'dataserver2', "default main application folder")
+DEFAULT_MAIN_ALIAS = _StrDefault(
+    u'nti.dataserver', "default alias of main application folder")
+
 def install_main_application_and_sites(conn,
-                                       root_name=u'Application',
-                                       root_alias=u'nti.dataserver_root',
-                                       main_name=u'dataserver2',
-                                       main_alias=u'nti.dataserver',
+                                       root_name=DEFAULT_ROOT_NAME,
+                                       root_alias=DEFAULT_ROOT_ALIAS,
+                                       main_name=DEFAULT_MAIN_NAME,
+                                       main_alias=DEFAULT_MAIN_ALIAS,
                                        main_factory=Folder,
                                        main_setup=None):
     """
     Install the main application and site folder structure into ZODB.
 
     When this completes, the ZODB root object will have a :class:`.IRootFolder`
-    object at "Application" (and optionally at *root_alias*). This will
-    have a site manager.
+    object at *root_name* (and optionally at *root_alias*), created
+    by :func:`zope.site.folder.rootFolder`. This will
+    have a site manager. Note that this object does not have a ``__name__``
+    and will serve as the base (root, or "/") for object path traversal.
 
     The root folder in turn will have a
-    :class:`.IMainApplicationFolder` child named *main_name* (and
+    :class:`~.IMainApplicationFolder` child named *main_name* (and
     optionally at *main_alias*). It will have a site manager, and in
     this site manager will be the "++etc++hostsites" object used to
     contain host site folders.
+
+    The tree will look like this::
+
+      <Connection Root Dictionary>
+         <ISite,IRootFolder>: root_name rootFolder()
+             <ISite,IMainApplicationFolder>: main_name  <main_factory>
+                 ++etc++hostsites <class 'nti.site.folder.HostSitesFolder'>
+         main_name  -> /root_name/main_name
+         main_alias -> /root_name/main_name
+         root_alias -> /root_name
+
+    Using the default names, that would be::
+
+      <Connection Root Dictionary>
+         <ISite,IRootFolder>: Application
+             <ISite,IMainApplicationFolder>: dataserver2
+                 ++etc++hostsites
+         dataserver2         -> /Application/dataserver2
+         nti.dataserver      -> /Application/dataserver2
+         nti.dataserver_root -> /Application
+
+    .. caution::
+       Passing in duplicate names for any of the parameters
+       may result in unexpected results.
+
+    .. note::
+       The aliases are only installed if the *alias* parameters are true.
+       In the future, the *alias* parameters will default to false.
+
+    .. note::
+       The root folder
+
+    .. versionchanged:: 2.1
+       The *root_alias* now points to the *root_name*. Previously it pointed
+       to *main_name* (e.g., /Application/dataserver2). This made no sense
+       because *main_alias* already pointed there.
 
     :param conn: The open ZODB connection.
     :keyword str root_name: The main name of the root folder. This generally should
@@ -174,7 +255,16 @@ def install_main_application_and_sites(conn,
       application folder object and perform further setup on it. This will be called
       *before* any lifecycle events are generated. This is a good time to install additional
       utilities, such as :class:`IIntId` utilities.
+
+    After *main_setup* has been called, and the lifecycle events for the root folder
+    and main folder have been generated, this calls :func:`install_sites_folder`.
     """
+
+    root_name = text_type(root_name) if root_name else None
+    root_alias = text_type(root_alias) if root_alias else None
+    main_name = text_type(main_name) if main_name else None
+    main_alias = text_type(main_alias) if main_alias else None
+
     root = conn.root()
 
     # The root folder
@@ -193,44 +283,46 @@ def install_main_application_and_sites(conn,
     root_folder.setSiteManager(root_sm)
     assert ISite.providedBy(root_folder)
 
-    server_folder = main_factory()
-    if not IMainApplicationFolder.providedBy(server_folder):
-        interface.alsoProvides(server_folder, IMainApplicationFolder)
-    conn.add(server_folder)
-    root_folder[main_name] = server_folder
-    assert server_folder.__parent__ is root_folder
-    assert server_folder.__name__ == main_name
-    assert root_folder[main_name] is server_folder
+    main_folder = main_factory()
+    if not IMainApplicationFolder.providedBy(main_folder):
+        interface.alsoProvides(main_folder, IMainApplicationFolder)
+    conn.add(main_folder)
+    root_folder[main_name] = main_folder
+    assert main_folder.__parent__ is root_folder
+    assert main_folder.__name__ == main_name
+    assert root_folder[main_name] is main_folder
 
-    lsm = BTreeLocalSiteManager(server_folder)
+    lsm = BTreeLocalSiteManager(main_folder)
+    lsm.__bases__ = (root_sm,)
     conn.add(lsm)
-    assert lsm.__parent__ is server_folder
-    assert lsm.__bases__ == (root_sm,)
+    assert lsm.__parent__ is main_folder
+    assert lsm.__bases__ == (root_sm,), (lsm.__bases__, root_sm)
 
-    server_folder.setSiteManager(lsm)
-    assert ISite.providedBy(server_folder)
+    main_folder.setSiteManager(lsm)
+    assert ISite.providedBy(main_folder)
 
-    with current_site(server_folder):
-        assert component.getSiteManager() is lsm, "Component hooks must have been reset"
+    with current_site(main_folder):
+        current_site_man = component.getSiteManager()
+        assert current_site_man is lsm, ("Component hooks must have been reset", current_site_man, lsm)
 
         # The name that many Zope components assume
         root[root_name] = root_folder
         if root_alias:
-            root[root_alias] = server_folder
+            root[root_alias] = root_folder
 
-        root[server_folder.__name__] = server_folder
+        root[main_folder.__name__] = main_folder
         if main_alias:
-            root[main_alias] = server_folder
+            root[main_alias] = main_folder
 
         if main_setup:
-            main_setup(server_folder)
+            main_setup(main_folder)
 
         lifecycleevent.added(root_folder)
-        lifecycleevent.added(server_folder)
+        lifecycleevent.added(main_folder)
 
-        install_sites_folder(server_folder)
+        install_sites_folder(main_folder)
 
-    return root_folder, server_folder
+    return root_folder, main_folder
 
 def get_all_host_sites():
     """

@@ -15,6 +15,15 @@
   ``nti.testing.zodb.ZODBLayer.db``, and there is no replacement for
   the later.
 
+- Add the module ``nti.site.testing``. This contains extensible,
+  documnted versions of the functions that were previously in
+  ``nti.site.tests`` as private helpers.
+
+- Add support for Python 3.8.
+
+- Make ``hostpolicy.install_main_application_and_sites()`` set the
+  *root_alias* correctly. Previously, instead of setting it to the
+  *root_name*, it set it to the *main_name*.
 
 2.0.0 (2019-09-10)
 ==================
