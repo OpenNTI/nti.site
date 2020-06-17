@@ -1,5 +1,6 @@
-nti.site package
-================
+========================
+ nti.site API Reference
+========================
 
 .. toctree::
 
@@ -12,3 +13,4 @@ nti.site package
    nti.site.subscribers
    nti.site.transient
    nti.site.utils
+   nti.site.testing

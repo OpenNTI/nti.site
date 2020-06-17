@@ -8,6 +8,7 @@ TESTS_REQUIRE = [
     'pyhamcrest',
     'z3c.baseregistry',
     'zope.testrunner',
+    'coverage',
 ]
 
 
@@ -36,6 +37,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
@@ -70,6 +72,6 @@ setup(
             'Sphinx',
             'repoze.sphinx.autointerface',
             'sphinx_rtd_theme',
-        ]
+        ] + TESTS_REQUIRE # To be able to import nti.site.testing
     },
 )

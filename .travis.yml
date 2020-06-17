@@ -1,25 +1,28 @@
 language: python
-sudo: false
-group: travis_latest
 python:
   - 2.7
+  - 3.5
   - 3.6
   - 3.7
+  - 3.8
   - pypy
   - pypy3
 script:
   - coverage run -m zope.testrunner --test-path=src  --auto-color --auto-progress
+env:
+    global:
+        - PYTHONHASHSEED=1042466059
+
 after_success:
-  - coverage report
   - coveralls
 notifications:
   email: dev-regression-tests@nextthought.com
 
 install:
-  - pip install -U pip
-  - pip install -U setuptools
+  - pip install -U pip setuptools
   - pip install -U coveralls coverage
   - pip install -U -e ".[test]"
+
 
 cache: pip
 

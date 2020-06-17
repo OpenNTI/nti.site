@@ -97,7 +97,7 @@ exclude_patterns = ['_build']
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
 #
-# default_role = None
+default_role = 'obj'
 
 # If true, '()' will be appended to :func: etc. cross-reference text.
 #
@@ -355,10 +355,12 @@ texinfo_documents = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
     'https://docs.python.org/': None,
-    'http://zodb.readthedocs.io/en/latest/': None,
-    'http://zopeinterface.readthedocs.io/en/latest/': None,
-    'http://zopecomponent.readthedocs.io/en/latest/': None,
-    'http://zopesite.readthedocs.io/en/latest/': None,
+    'https://zodb-docs.readthedocs.io/en/latest/': None,
+    'https://zopeinterface.readthedocs.io/en/latest/': None,
+    'https://zopecomponent.readthedocs.io/en/latest/': None,
+    'https://zopesite.readthedocs.io/en/latest/': None,
+    'https://zopetraversing.readthedocs.io/en/latest/': None,
+    'https://ntitesting.readthedocs.io/en/latest/': None,
 }
 
 extlinks = {'issue': ('https://github.com/NextThought/nti.site/issues/%s',

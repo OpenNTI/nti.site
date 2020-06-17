@@ -38,16 +38,16 @@ and contains any applicable policies that are globally configured.
   site configurations.
 * See :mod:`nti.site.site` for the getting the correctly configured site.
 * See :mod:`nti.site.subscribers` for setting up the correct site during traversal.
-
+* See :mod:`nti.site.testing` for test helpers.
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
-logger = __import__('logging').getLogger(__name__)
+# All of these imports are deprecated and will be removed in 2021.
 
-from nti.site.hostpolicy import get_host_site
-from nti.site.hostpolicy import get_all_host_sites
+from nti.site.hostpolicy import get_host_site # pylint:disable=unused-import
+from nti.site.hostpolicy import get_all_host_sites # pylint:disable=unused-import
 
-from nti.site.utils import registerUtility
-from nti.site.utils import unregisterUtility
+from nti.site.utils import registerUtility # pylint:disable=unused-import
+from nti.site.utils import unregisterUtility # pylint:disable=unused-import
