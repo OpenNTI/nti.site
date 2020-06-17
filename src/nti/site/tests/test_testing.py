@@ -30,7 +30,7 @@ class TestPrintTree(unittest.TestCase):
     def test_print_tree(self):
         buf = self.NativeIO()
 
-        class Trans(testing.current_db_site_trans):
+        class Trans(testing.persistent_site_trans):
 
             def on_application_and_sites_installed(self, folder):
                 super(Trans, self).on_application_and_sites_installed(folder)
@@ -59,7 +59,7 @@ class TestPrintTree(unittest.TestCase):
 class TestCurrentDBSiteTrans(testing.SiteTestCase):
 
     def test_find_site(self):
-        with testing.current_db_site_trans(site_name='foobar'):
+        with testing.persistent_site_trans(site_name='foobar'):
             pass
 
 class TestIndependent(unittest.TestCase):

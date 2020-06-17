@@ -44,7 +44,7 @@ __all__ = [
     'setHooks',
     'resetHooks',
     'print_tree',
-    'current_db_site_trans',
+    'persistent_site_trans',
     'SharedConfiguringTestLayer',
     'SiteTestCase',
     'uses_independent_db_site',
@@ -96,10 +96,10 @@ def print_tree(folder, depth=1, file=None, seen=None, name=None, basic_indent=' 
         print(basic_indent * (depth + 1), repr(folder), file=file)
 
 
-class current_db_site_trans(zodb.mock_db_trans):
+class persistent_site_trans(zodb.mock_db_trans):
     """
     Context manager for a ZODB database connection and
-    active ``zope.component`` site.
+    active ``zope.component`` site (usually) persisted in the database.
 
     .. versionchanged:: 2.1.0
        While there was no previous public version of this class,
@@ -126,7 +126,7 @@ class current_db_site_trans(zodb.mock_db_trans):
             If not given, the site found at :attr:`main_application_folder_name`
             will be the current site.
         """
-        super(current_db_site_trans, self).__init__(db)
+        super(persistent_site_trans, self).__init__(db)
         self._site_cm = None
         self._site_name = site_name
 
@@ -151,7 +151,7 @@ class current_db_site_trans(zodb.mock_db_trans):
                                            main_setup=self.on_application_and_sites_installed)
 
     def on_connection_opened(self, conn):
-        super(current_db_site_trans, self).on_connection_opened(conn)
+        super(persistent_site_trans, self).on_connection_opened(conn)
         main_name = hostpolicy.text_type(self.main_application_folder_name)
 
         root = conn.root()
@@ -170,11 +170,11 @@ class current_db_site_trans(zodb.mock_db_trans):
 
     def __exit__(self, t, v, tb):
         result = self._site_cm.__exit__(t, v, tb) # pylint:disable=no-member
-        super(current_db_site_trans, self).__exit__(t, v, tb)
+        super(persistent_site_trans, self).__exit__(t, v, tb)
         return result
 
 
-mock_db_trans = current_db_site_trans # BWC, remove in 2021
+mock_db_trans = persistent_site_trans # BWC, remove in 2021
 reset_db_caches = zodb.reset_db_caches # BWC, remove in 2021
 
 def _mock_ds_wrapper_for(func, installer_factory, installer_kwargs, db_factory,
@@ -223,7 +223,7 @@ def default_db_factory():
 
 def uses_independent_db_site(*args, **kwargs):
     """
-    uses_independent_db_site(db_factory=None, installer_factory=current_db_site_trans, installer_kwargs={}) -> function
+    uses_independent_db_site(db_factory=None, installer_factory=persistent_site_trans, installer_kwargs={}) -> function
 
     A decorator or decorator factory. Creates a new database using *db_factory*,
     initializes it using *installer_factory*, and then runs the body of the function
@@ -246,7 +246,7 @@ def uses_independent_db_site(*args, **kwargs):
             def test_something_else(self):
                 pass
 
-    The body of the function is free to use :class:`current_db_site_trans` statements.
+    The body of the function is free to use :class:`persistent_site_trans` statements.
     They will default to using the database established here instead of
     a database established by a test layer (which should be the same in most cases).
 
@@ -255,7 +255,7 @@ def uses_independent_db_site(*args, **kwargs):
 
     :keyword type installer_factory: The factory used to create
        the installer. The installer executes before the body of the wrapped
-       function. This defaults to :class:`current_db_site_trans`, but can be
+       function. This defaults to :class:`persistent_site_trans`, but can be
        set to any custom subclass that accepts the db as its first argument and
        is a context manager that does whatever installation is needed and commits
        the transaction.
@@ -264,7 +264,7 @@ def uses_independent_db_site(*args, **kwargs):
     """
     assert bool(args) ^ bool(kwargs), "Cannot mix keyword arguments and regular arguments."
 
-    installer_factory = kwargs.pop('installer_factory', current_db_site_trans)
+    installer_factory = kwargs.pop('installer_factory', persistent_site_trans)
     installer_kwargs = kwargs.pop('installer_kwargs', {})
     db_factory = kwargs.pop('db_factory', default_db_factory)
     assert not kwargs

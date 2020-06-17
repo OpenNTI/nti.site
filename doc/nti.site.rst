@@ -1,5 +1,6 @@
-nti.site package
-================
+========================
+ nti.site API Reference
+========================
 
 .. toctree::
 

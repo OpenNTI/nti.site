@@ -182,8 +182,8 @@ from nti.site.hostpolicy import get_host_site
 from nti.site.site import _find_site_components
 from nti.site.site import get_site_for_site_names
 
-from nti.site.tests import WithMockDS
-from nti.site.tests import mock_db_trans
+from nti.site.testing import uses_independent_db_site as WithMockDS
+from nti.site.testing import persistent_site_trans as mock_db_trans
 
 from nti.testing.matchers import verifiably_provides
 

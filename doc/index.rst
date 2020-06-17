@@ -6,9 +6,13 @@
 Contents:
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    nti.site
+
+.. toctree::
+   :maxdepth: 1
+
    changelog
 
 .. automodule:: nti.site

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-.. $Id$
+This module currently has no non-deprecated functions.
 """
 
 from __future__ import print_function, absolute_import, division

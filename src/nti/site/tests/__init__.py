@@ -10,7 +10,7 @@ from nti.testing import zodb
 from .. import testing
 
 
-current_db_site_trans = testing.current_db_site_trans # BWC, remove in 2021
+current_db_site_trans = testing.persistent_site_trans # BWC, remove in 2021
 mock_db_trans = current_db_site_trans # BWC, remove in 2021
 reset_db_caches = zodb.reset_db_caches # BWC, remove in 2021
 WithMockDS = testing.uses_independent_db_site # BWC, remove in 2021
