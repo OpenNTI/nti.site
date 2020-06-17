@@ -50,7 +50,7 @@ from nti.site.tests import SharedConfiguringTestLayer
 
 from nti.testing.matchers import validly_provides
 
-class IMock(Interface):
+class IMock(Interface): # pylint:disable=inherit-non-class,too-many-ancestors
     pass
 
 @interface.implementer(IMock)
@@ -68,7 +68,7 @@ from zope.component import globalSiteManager as BASE
 
 from z3c.baseregistry.baseregistry import BaseComponents
 
-class IFoo(Interface):
+class IFoo(Interface): # pylint:disable=inherit-non-class,too-many-ancestors
     pass
 
 class TestSiteSubscriber(unittest.TestCase):
@@ -99,17 +99,17 @@ class TestSiteSubscriber(unittest.TestCase):
         # It should have the marker property
         assert_that(cur_site.getSiteManager(),
                     has_property('host_components',
-                                   host_comps))
+                                 host_comps))
 
         assert_that(ro.ro(cur_site.getSiteManager()),
                     contains(
-                         # The first entry is synthesized
-                         has_property('__name__', new_comps.__name__),
-                         pers_comps,
-                         # The host comps appear after all the bases
-                         # in the ro of the new site
-                         host_comps,
-                         BASE))
+                        # The first entry is synthesized
+                        has_property('__name__', new_comps.__name__),
+                        pers_comps,
+                        # The host comps appear after all the bases
+                        # in the ro of the new site
+                        host_comps,
+                        BASE))
 
     def testTraverseFailsIntoSiblingSiteExceptHostPolicyFolders(self):
         new_comps = BaseComponents(BASE, 'sub_site', ())
@@ -169,7 +169,7 @@ DEMOALPHA = BaseComponents(DEMO,
 _SITES = (EVAL, EVALALPHA, DEMO, DEMOALPHA)
 
 from zope.component.interfaces import ISite
-from zope.component.interfaces import IComponents
+from zope.interface.interfaces import IComponents
 
 from zope.site.interfaces import INewLocalSite
 
@@ -187,7 +187,7 @@ from nti.site.testing import persistent_site_trans as mock_db_trans
 
 from nti.testing.matchers import verifiably_provides
 
-class ITestSiteSync(interface.Interface):
+class ITestSiteSync(interface.Interface): # pylint:disable=inherit-non-class,too-many-ancestors
     pass
 
 @interface.implementer(ITestSiteSync)
@@ -243,22 +243,22 @@ class TestSiteSync(unittest.TestCase):
         class S2(Base): pass
         # DB sites
         class PS1(S1, DS): pass
-        class PS2(S2, PS1): pass
+        class PS2(S2, PS1): pass # pylint:disable=too-many-ancestors
 
         assert_that(ro.ro(PS2),
-                     is_([PS2, S2, PS1, S1, Base, DS, Root, GSM, object]))
+                    is_([PS2, S2, PS1, S1, Base, DS, Root, GSM, object]))
 
     @WithMockDS
     def test_site_sync(self):
 
         for site in _SITES:
             assert_that(_find_site_components((site.__name__,)),
-                         is_(not_none()))
+                        is_(not_none()))
 
         with mock_db_trans() as conn:
             for site in _SITES:
                 assert_that(_find_site_components((site.__name__,)),
-                             is_(not_none()))
+                            is_(not_none()))
 
 
             ds = conn.root()['nti.dataserver']
@@ -284,7 +284,7 @@ class TestSiteSync(unittest.TestCase):
         with mock_db_trans() as conn:
             for site in _SITES:
                 assert_that(_find_site_components((site.__name__,)),
-                             is_(not_none()))
+                            is_(not_none()))
 
             ds = conn.root()['nti.dataserver']
 
@@ -297,7 +297,7 @@ class TestSiteSync(unittest.TestCase):
             # If we ask the demoalpha persistent site for an ITestSyteSync,
             # it will find us, because it goes to the demo global site
             assert_that(sites[DEMOALPHA.__name__].getSiteManager().queryUtility(ITestSiteSync),
-                         is_(ASync))
+                        is_(ASync))
 
             # However, if we put something in the demo *persistent* site, it
             # will find that
@@ -343,7 +343,7 @@ class TestSiteSync(unittest.TestCase):
 
             # And that it's what we get back if we ask for it
             assert_that(get_site_for_site_names((DEMOALPHA.__name__,)),
-                         is_(same_instance(sites[DEMOALPHA.__name__])))
+                        is_(same_instance(sites[DEMOALPHA.__name__])))
 
         # No new sites created
         assert_that(self._events, has_length(len(_SITES)))
