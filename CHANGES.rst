@@ -2,7 +2,7 @@
  Changes
 =========
 
-2.1.0 (unreleased)
+2.1.0 (2020-06-17)
 ==================
 
 - Test changes: Depend on ``nti.testing`` 3.0 and refactor certain
