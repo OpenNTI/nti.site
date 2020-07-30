@@ -100,6 +100,7 @@ def print_tree(folder, **kwargs):
     name = kwargs.get('name', None)
     show_unknown = kwargs.get('show_unknown', repr)
     known_types = kwargs.get('known_types', (int, str, type(u''), float, type(None)))
+    extra_details = kwargs.get('extra_details', lambda o: ())
 
     indent = basic_indent * depth
     folder_id = id(folder)
@@ -137,6 +138,8 @@ def print_tree(folder, **kwargs):
             pass
     if 'type' in details:
         print_args.append(type(folder))
+
+    print_args.extend(extra_details(folder))
 
     if not hasattr(folder, 'items'):
         print_args.append('=>')
