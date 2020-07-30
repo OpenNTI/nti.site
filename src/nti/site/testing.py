@@ -50,21 +50,58 @@ __all__ = [
     'uses_independent_db_site',
 ]
 
-
-def print_tree(folder, depth=1, file=None, seen=None, name=None, basic_indent='    '):
+def format_tree(folder, **kwargs):
     """
-    print_tree(folder, file=sys.stdout, basic_indent='    ') -> None
+    Like :func:`print_tree`, but returns the results as a string
+    instead of printing them to ``stdout`` or a file.
+
+    Any *file* argument given is ignored.
+
+    .. versionadded:: 2.2.0
+    """
+    if str is bytes:
+        # Handles unicode and bytes mixed appropriately
+        import cStringIO as io
+    else:
+        import io
+    out = io.StringIO()
+    kwargs['file'] = out
+    print_tree(folder, **kwargs)
+    return out.getvalue()
+
+
+def print_tree(folder, **kwargs):
+    """
+    print_tree(folder, file=sys.stdout, show_unknown=repr, basic_indent='    ', details=('id', 'type', 'len', 'siteManager')) -> None
 
     Print a descriptive tree of the contents of the dict-like *folder* to *file*.
+
+    Pass a subset of *details* to disable printing certain information
+    when it isn't relavent.
+
+    .. versionchanged:: 2.2.0
+       Add several arguments including *show_unknown*, *details*.
+       Print the contents of site managers by default.
+       Fix a bug not passing the *basic_indent* to recursive calls.
     """
+    # pylint:disable=too-many-locals,too-many-branches,too-many-statements
+    # XXX: Refactor me.
     import sys
     from zope.site.interfaces import IRootFolder
     from zope.component.interfaces import ISite
 
-    file = file or sys.stdout
-    seen = seen if seen is not None else dict()
-    indent = basic_indent * depth
+    file = kwargs.get('file', sys.stdout)
+    seen = kwargs.get('seen')
+    if seen is None:
+        seen = kwargs['seen'] = dict()
+    basic_indent = kwargs.get('basic_indent', '    ')
+    depth = kwargs.get('depth', 1)
+    details = kwargs.get('details', ('id', 'type', 'len', 'siteManager'))
+    name = kwargs.get('name', None)
+    show_unknown = kwargs.get('show_unknown', repr)
+    known_types = kwargs.get('known_types', (int, str, type(u''), float, type(None)))
 
+    indent = basic_indent * depth
     folder_id = id(folder)
 
     if name is None:
@@ -78,7 +115,7 @@ def print_tree(folder, depth=1, file=None, seen=None, name=None, basic_indent=' 
     if folder_id in seen:
         print(indent, name, '->', seen[folder_id], file=file)
         return
-    seen[id(folder)] = name + ' ' + str(folder_id)
+    seen[folder_id] = name + ' ' + str(folder_id)
 
     provs = []
     for iface in ISite, IRootFolder, IMainApplicationFolder:
@@ -87,13 +124,42 @@ def print_tree(folder, depth=1, file=None, seen=None, name=None, basic_indent=' 
     if provs:
         name = '<' + ','.join(provs) + '>: ' + name
 
-    print(indent, name, folder_id, type(folder), file=file)
+    print_args = []
+    if indent:
+        print_args.append(indent)
+    print_args.append(name)
+    if 'id' in details:
+        print_args.append(folder_id)
+    if 'len' in details:
+        try:
+            print_args.append('len=' + str(len(folder)))
+        except TypeError:
+            pass
+    if 'type' in details:
+        print_args.append(type(folder))
+
+    if not hasattr(folder, 'items'):
+        print_args.append('=>')
+        if isinstance(folder, known_types):
+            print_args.append(repr(folder))
+        else:
+            print_args.append(show_unknown(folder))
+
+    print(*print_args, file=file)
 
     if hasattr(folder, 'items'):
+        recur_args = kwargs.copy()
+        recur_args['depth'] = depth + 1
         for k, v in sorted(folder.items()):
-            print_tree(v, depth + 1, file, seen, k)
-    else:
-        print(basic_indent * (depth + 1), repr(folder), file=file)
+            recur_args['name'] = k
+            print_tree(v, **recur_args)
+
+    if 'siteManager' in details and ISite.providedBy(folder):
+        site_man = folder.getSiteManager()
+        recur_args = kwargs.copy()
+        recur_args['depth'] = depth + 1
+        recur_args['name'] = '<Site Manager> name=' + site_man.__name__
+        print_tree(site_man, **recur_args)
 
 
 class persistent_site_trans(zodb.mock_db_trans):
