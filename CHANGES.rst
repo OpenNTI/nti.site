@@ -2,10 +2,10 @@
  Changes
 =========
 
-2.1.1 (unreleased)
+2.2.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Improvements and bug fixes to ``nti.testing.print_tree``.
 
 
 2.1.0 (2020-06-17)
