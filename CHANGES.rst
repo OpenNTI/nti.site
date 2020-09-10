@@ -11,6 +11,11 @@
 
   Previously, it never installed root sites.
 
+- Make ``threadSiteSubscriber`` install sites when their configuration
+  is not recognized.
+
+  Previously, it would raise ``LocationError``.
+
 - Fix tests with, and require, zope.site 4.4.0 or above. See
   :issue:`34`.
 

@@ -34,7 +34,6 @@ from zope.component.hooks import getSite
 from zope.component.hooks import setSite
 from zope.component.hooks import site as currentSite
 
-from zope.location.interfaces import LocationError
 
 from nti.site.interfaces import ISiteMapping
 from nti.site.interfaces import SiteNotFoundError
@@ -125,18 +124,22 @@ class TestSiteSubscriber(unittest.TestCase):
             new_site2 = MockSite(new_comps2)
             new_site2.__name__ = new_comps2.__name__
 
-            # ... we fail...
-            assert_that(calling(threadSiteSubscriber).with_args(new_site2, None),
-                        raises(LocationError))
+            # ... and that's allowed, completely replacing the current site...
+            threadSiteSubscriber(new_site2, None)
+            assert_that(getSite(), is_(same_instance(new_site2)))
 
-            # ...unless they are both HostPolicyFolders...
+            # ... reset ...
+            threadSiteSubscriber(new_site, None)
+            assert_that(getSite(), is_(same_instance(new_site)))
+
+            # ...If they are both HostPolicyFolders...
             interface.alsoProvides(new_site, IHostPolicyFolder)
             interface.alsoProvides(new_site2, IHostPolicyFolder)
             repr(new_site) # coverage
             str(new_site)
             threadSiteSubscriber(new_site2, None)
 
-            # ... which does not change the site
+            # ... traversal does not change the site
             assert_that(getSite(), is_(same_instance(new_site)))
 
 # Match a hierarchy we have in nti.app.sites.demo:
