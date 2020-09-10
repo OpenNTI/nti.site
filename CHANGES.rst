@@ -11,6 +11,8 @@
 
   Previously, it never installed root sites.
 
+- Fix tests with, and require, zope.site 4.4.0 or above. See
+  :issue:`34`.
 
 2.2.0 (2020-07-30)
 ==================

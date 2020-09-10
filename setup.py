@@ -63,7 +63,7 @@ setup(
         'zope.interface >= 4.4.2',
         'zope.location',
         'zope.proxy',
-        'zope.site',
+        'zope.site >= 4.4.0', # Proper site cleanup.
         'zope.traversing',
     ],
     extras_require={
