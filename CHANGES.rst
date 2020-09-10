@@ -14,6 +14,9 @@
 - Fix tests with, and require, zope.site 4.4.0 or above. See
   :issue:`34`.
 
+- Fix deprecation warning from ``nti.transactions``. Requires
+  ``nti.transactions`` 4.0. See :issue:`33`.
+
 2.2.0 (2020-07-30)
 ==================
 
