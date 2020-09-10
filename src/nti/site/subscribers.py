@@ -56,7 +56,7 @@ class _ProxyTraversedSite(ProxyBase):
     siteManager methods but proxy everything else.
     """
 
-    def __new__(cls, base, site_manager):
+    def __new__(cls, base, site_manager): # pylint:disable=unused-argument
         return ProxyBase.__new__(cls, base)
 
     def __init__(self, base, site_manager):
@@ -68,11 +68,12 @@ class _ProxyTraversedSite(ProxyBase):
         return self.__site_manager
 
     @non_overridable
-    def setSiteManager(self, new_man):
+    def setSiteManager(self, new_man): # pylint:disable=unused-argument
         raise ValueError("Cannot set site manager on proxy")
 
+
 @component.adapter(ISite, IBeforeTraverseEvent)
-def threadSiteSubscriber(new_site, event):
+def threadSiteSubscriber(new_site, _event):
     """
     Set the current ``zope.component.hooks`` site to
     the ``new_site`` object found during traversal,
@@ -90,26 +91,42 @@ def threadSiteSubscriber(new_site, event):
     as sites, we take no action.
 
     We expect that something else takes care of clearing the site.
-    """
 
-    if IMainApplicationFolder.providedBy(new_site) or IRootFolder.providedBy(new_site):
-        # TODO: Since we get these events, we could
-        # actually replace nti.appserver.tweens.zope_site_tween
-        # with this. That's probably the longterm answer.
-        return
+    .. versionchanged:: 2.3.0
+       Always install the *new_site* if there is no current site.
+       Previously, if *new_site* provided `~.IMainApplicationFolder` or
+       `zope.site.interfaces.IRootFolder`, it was always ignored.
+    """
 
     current_site = getSite()
     if current_site is None:
         # Nothing to do
         setSite(new_site)
-    elif current_site is new_site:
+        return
+
+    if current_site is new_site:
         # This is typically the case when we traverse directly
         # into utilities registered with the site, for example
         #   /dataserver2/++etc++hostsites/janux.ou.edu/++etc++site/SOMEUTILITY/...
         # with the current host being janux.ou.edu.
-        pass
-    elif IHostPolicyFolder.providedBy(current_site) and \
-         IHostPolicyFolder.providedBy(new_site):
+        return
+
+
+    if IMainApplicationFolder.providedBy(new_site) or IRootFolder.providedBy(new_site):
+        # TODO: Since we get these events, we could actually replace
+        # nti.appserver.tweens.zope_site_tween with this. That's
+        # probably the longterm answer.
+        #
+        # The complication with that is that the tween uses information in the Pyramid request
+        # to find ``nti.site.site.get_site_for_site_names`` and install that site
+        # before traversal. The "right" solution to this is probably something to do
+        # with "virtual hosts" and setting the path up to traverse through that site
+        # first, and then into the real traversal?
+        return
+
+
+    if IHostPolicyFolder.providedBy(current_site) and \
+       IHostPolicyFolder.providedBy(new_site):
         # This is typically the case when we traverse directly
         # into utilities registered with the site, for example
         #   /dataserver2/++etc++hostsites/janux.ou.edu/++etc++site/SOMEUTILITY/...
@@ -118,8 +135,9 @@ def threadSiteSubscriber(new_site, event):
         # want to allow traversal, so we take no action.
         # TODO: We might want to only allow this if there is some
         # inheritance relationship between the two sites?
-        pass
-    elif hasattr(current_site.getSiteManager(), 'host_components'):
+        return
+
+    if hasattr(current_site.getSiteManager(), 'host_components'):
         # A site synthesized by get_site_for_site_names
         # OR one previously synthesized by this function. In either case,
         # we always want to proxy, putting the preserved host components
@@ -144,10 +162,11 @@ def threadSiteSubscriber(new_site, event):
                                             new_site_manager)
 
         setSite(new_fake_site)
-    else:
-        # Cancel traversal using a LocationError. This typically
-        # will get surfaced as a 404.
-        raise LocationError("Unknown kind of site", new_site, current_site)
+        return
+
+    # Cancel traversal using a LocationError. This typically
+    # will get surfaced as a 404.
+    raise LocationError("Unknown kind of site", new_site, current_site)
 
 @component.adapter(INewLocalSite)
 def new_local_site_dispatcher(event):

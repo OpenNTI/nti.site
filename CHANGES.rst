@@ -2,10 +2,14 @@
  Changes
 =========
 
-2.2.1 (unreleased)
+2.3.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Make ``threadSiteSubscriber`` (the traversal subscriber for
+  ``ISite`` objects) will install a traversed site that is a root if
+  there is no current site.
+
+  Previously, it never installed root sites.
 
 
 2.2.0 (2020-07-30)
