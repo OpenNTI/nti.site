@@ -53,7 +53,7 @@ setup(
         # do the same in regular deps.
         'ZODB >= 5.6.0',
         'nti.schema',
-        'nti.transactions >= 3.0.0',
+        'nti.transactions >= 4.0.0', # nti.transactions.loop
         'persistent',
         'setuptools',
         'six',
@@ -63,7 +63,7 @@ setup(
         'zope.interface >= 4.4.2',
         'zope.location',
         'zope.proxy',
-        'zope.site',
+        'zope.site >= 4.4.0', # Proper site cleanup.
         'zope.traversing',
     ],
     extras_require={

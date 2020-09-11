@@ -6,6 +6,7 @@ __docformat__ = "restructuredtext en"
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
+# pylint:disable=too-many-ancestors
 
 from hamcrest import is_
 from hamcrest import is_not
@@ -33,9 +34,8 @@ from zope.component.hooks import getSite
 from zope.component.hooks import setSite
 from zope.component.hooks import site as currentSite
 
-from zope.component.interfaces import IComponents
+from zope.interface.interfaces import IComponents
 
-from zope.location.interfaces import LocationError
 
 from zope.component import globalSiteManager as BASE
 
@@ -62,7 +62,7 @@ from persistent import Persistent
 
 import fudge
 
-class IMock(Interface):
+class IMock(Interface): # pylint:disable=inherit-non-class
     pass
 
 @interface.implementer(IMock)
@@ -77,7 +77,7 @@ class MockSite(object):
     def getSiteManager(self):
         return self.site_man
 
-class IFoo(Interface):
+class IFoo(Interface): # pylint:disable=inherit-non-class
     pass
 
 @interface.implementer(IFoo)
@@ -112,17 +112,17 @@ class TestSiteSubscriber(unittest.TestCase):
         # It should have the marker property
         assert_that(cur_site.getSiteManager(),
                     has_property('host_components',
-                                   host_comps))
+                                 host_comps))
 
         assert_that(ro.ro(cur_site.getSiteManager()),
                     contains(
-                         # The first entry is synthesized
-                         has_property('__name__', new_comps.__name__),
-                         pers_comps,
-                         # The host comps appear after all the bases
-                         # in the ro of the new site
-                         host_comps,
-                         BASE))
+                        # The first entry is synthesized
+                        has_property('__name__', new_comps.__name__),
+                        pers_comps,
+                        # The host comps appear after all the bases
+                        # in the ro of the new site
+                        host_comps,
+                        BASE))
 
     def testTraverseFailsIntoSiblingSiteExceptHostPolicyFolders(self):
         new_comps = BaseComponents(BASE, 'sub_site', ())
@@ -137,16 +137,20 @@ class TestSiteSubscriber(unittest.TestCase):
             new_site2 = MockSite(new_comps2)
             new_site2.__name__ = new_comps2.__name__
 
-            # ... we fail...
-            assert_that(calling(threadSiteSubscriber).with_args(new_site2, None),
-                        raises(LocationError))
+            # ... and that's allowed, completely replacing the current site...
+            threadSiteSubscriber(new_site2, None)
+            assert_that(getSite(), is_(same_instance(new_site2)))
 
-            # ...unless they are both HostPolicyFolders...
+            # ... reset ...
+            threadSiteSubscriber(new_site, None)
+            assert_that(getSite(), is_(same_instance(new_site)))
+
+            # ... if they are both HostPolicyFolders...
             interface.alsoProvides(new_site, IHostPolicyFolder)
             interface.alsoProvides(new_site2, IHostPolicyFolder)
             threadSiteSubscriber(new_site2, None)
 
-            # ... which does not change the site
+            # ... traversal does not change the site
             assert_that(getSite(), is_(same_instance(new_site)))
 
     def test_components_unregister_on_site_removal(self):
@@ -189,7 +193,7 @@ class TestGetSiteForSiteNames(AbstractTestBase):
         try:
             x = get_site_for_site_names(('',), trivial_site)
         finally:
-            C3.STRICT_IRO = C3.ORIG_STRICT_IRO
+            C3.STRICT_IRO = C3.ORIG_STRICT_IRO # pylint:disable=no-member
 
         assert_that(x, is_not(Persistent))
         assert_that(x, is_(TrivialSite))
@@ -208,7 +212,7 @@ class TestGetComponentHierarchy(AbstractTestBase):
         # correct behaviour
         pers_comps = BaseComponents(BASE, 'persistent', (BASE,))
 
-        class MockSite(object):
+        class LocalMockSite(object):
             __parent__ = None
             __name__ = None
 
@@ -218,7 +222,7 @@ class TestGetComponentHierarchy(AbstractTestBase):
         site_comps_1 = BaseComponents(pers_comps, '1', (pers_comps,))
         site_comps_2 = BaseComponents(site_comps_1, '2', (site_comps_1,))
 
-        site = MockSite()
+        site = LocalMockSite()
         site.__parent__[site_comps_1.__name__] = site_comps_1
         site.__parent__[site_comps_2.__name__] = site_comps_2
 
@@ -246,7 +250,9 @@ try:
     import zodbpickle.fastpickle as zpickle
 except ImportError:
     import zodbpickle.pickle as zpickle # pypy
-import BTrees.OOBTree
+from BTrees import family64
+OOBTree = family64.OO.BTree
+OIBTree = family64.OI.BTree
 
 class TestBTreeSiteMan(AbstractTestBase):
 
@@ -374,13 +380,13 @@ class TestBTreeSiteMan(AbstractTestBase):
                                  required=(IFoo,),
                                  provided=IMock)
 
-        assert_that(new_base._adapter_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(new_base._adapter_registrations, is_(OOBTree))
         assert_that(new_base._adapter_registrations.keys(),
                     contains(
                         ((IFoo,), IMock, u''),
-                        ((implementedBy(object),), IFoo, u'' ),
+                        ((implementedBy(object),), IFoo, u''),
                     ))
-        assert_that(new_base.adapters._provided, is_(BTrees.family64.OI.BTree))
+        assert_that(new_base.adapters._provided, is_(OIBTree))
         assert_that(new_base.adapters._adapters[0], is_({}))
 
         assert_that(new_base.adapters._adapters[1][IFoo], is_(dict))
@@ -390,7 +396,7 @@ class TestBTreeSiteMan(AbstractTestBase):
                                  required=(IFoo,),
                                  provided=IFoo)
 
-        assert_that(new_base.adapters._adapters[1][IFoo], is_(BTrees.family64.OO.BTree))
+        assert_that(new_base.adapters._adapters[1][IFoo], is_(OOBTree))
 
         transaction.commit()
         conn.close()
@@ -428,17 +434,17 @@ class TestBTreeSiteMan(AbstractTestBase):
         provided2 = new_base.adapters._provided
         # Make sure that it only converted once
         assert_that(provided1, is_(same_instance(provided2)))
-        assert_that(new_base._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(new_base._utility_registrations, is_(OOBTree))
 
         assert_that(new_base._utility_registrations.keys(),
                     contains(
                         (IFoo, u''),
                         ((implementedBy(MockSite), u'foo')),
                     ))
-        assert_that(new_base.utilities._provided, is_(BTrees.family64.OI.BTree))
-        assert_that(new_base.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+        assert_that(new_base.utilities._provided, is_(OIBTree))
+        assert_that(new_base.utilities._adapters[0], is_(OOBTree))
 
-        assert_that(new_base.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+        assert_that(new_base.utilities._adapters[0][IFoo], is_(OOBTree))
 
 
         transaction.commit()
@@ -488,7 +494,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         provided2 = new_base.adapters._provided
         # Make sure that it only converted once
         assert_that(provided1, is_(same_instance(provided2)))
-        assert_that(new_base._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(new_base._utility_registrations, is_(OOBTree))
 
         assert_that(new_base._utility_registrations.keys(),
                     contains(
@@ -496,10 +502,10 @@ class TestBTreeSiteMan(AbstractTestBase):
                         (IMock, u'foo'),
                         (implementedBy(object), u'foo'),
                     ))
-        assert_that(new_base.utilities._provided, is_(BTrees.family64.OI.BTree))
-        assert_that(new_base.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+        assert_that(new_base.utilities._provided, is_(OIBTree))
+        assert_that(new_base.utilities._adapters[0], is_(OOBTree))
 
-        assert_that(new_base.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+        assert_that(new_base.utilities._adapters[0][IFoo], is_(OOBTree))
 
 
         transaction.commit()
@@ -564,15 +570,15 @@ class TestBTreeSiteMan(AbstractTestBase):
         autility = AUtility()
         interface.alsoProvides(autility, IFoo)
         comps.registerUtility(autility)
-        assert_that(comps._utility_registrations, is_(BTrees.OOBTree.OOBTree))
+        assert_that(comps._utility_registrations, is_(OOBTree))
         assert_that(comps._utility_registrations.keys(),
                     contains(
                         ((IFoo, u'')),
                     ))
-        assert_that(comps.utilities._provided, is_(BTrees.family64.OI.BTree))
-        assert_that(comps.utilities._adapters[0], is_(BTrees.family64.OO.BTree))
+        assert_that(comps.utilities._provided, is_(OIBTree))
+        assert_that(comps.utilities._adapters[0], is_(OOBTree))
 
-        assert_that(comps.utilities._adapters[0][IFoo], is_(BTrees.family64.OO.BTree))
+        assert_that(comps.utilities._adapters[0][IFoo], is_(OOBTree))
 
     def test_convert_with_adapter_registered_on_class(self):
         comps = BLSM(None)
@@ -582,9 +588,9 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.utilities.btree_map_threshold = 0
 
         comps.registerAdapter(
-                           _foo_factory,
-                           required=(object, type('str')),
-                           provided=IFoo)
+            _foo_factory,
+            required=(object, type('str')),
+            provided=IFoo)
 
         x = comps.getMultiAdapter((object(), 'str'), IFoo)
         assert_that(x, is_(1))
@@ -598,22 +604,22 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.utilities.btree_map_threshold = 0
 
         comps.registerAdapter(
-                           _foo_factory,
-                           required=(object, type('str')),
-                           provided=IFoo)
+            _foo_factory,
+            required=(object, type('str')),
+            provided=IFoo)
 
         comps.registerAdapter(
-                           _foo_factory2,
-                           required=(object, type(0)),
-                           provided=IFoo)
+            _foo_factory2,
+            required=(object, type(0)),
+            provided=IFoo)
 
         x = comps.getMultiAdapter((object(), 'str'), IFoo)
         assert_that(x, is_(1))
 
 
-def _foo_factory(*args):
+def _foo_factory(*_args):
     return 1
-def _foo_factory2(*args):
+def _foo_factory2(*_args):
     return 2
 
 class TestPermissiveOOBTree(unittest.TestCase):

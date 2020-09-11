@@ -2,11 +2,25 @@
  Changes
 =========
 
-2.2.1 (unreleased)
+2.3.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Make ``threadSiteSubscriber`` (the traversal subscriber for
+  ``ISite`` objects) will install a traversed site that is a root if
+  there is no current site.
 
+  Previously, it never installed root sites.
+
+- Make ``threadSiteSubscriber`` install sites when their configuration
+  is not recognized.
+
+  Previously, it would raise ``LocationError``.
+
+- Fix tests with, and require, zope.site 4.4.0 or above. See
+  :issue:`34`.
+
+- Fix deprecation warning from ``nti.transactions``. Requires
+  ``nti.transactions`` 4.0. See :issue:`33`.
 
 2.2.0 (2020-07-30)
 ==================

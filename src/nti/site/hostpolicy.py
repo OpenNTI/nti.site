@@ -317,8 +317,12 @@ def install_main_application_and_sites(conn,
         if main_setup:
             main_setup(main_folder)
 
-        lifecycleevent.added(root_folder)
-        lifecycleevent.added(main_folder)
+        # Important to include the parent and name in the event so that
+        # it doesn't get interpreted as removal (ObjectAddedEvent extends
+        # ObjectMovedEvent, and so does ObjectRemovedEvent; commonly one subscribes to
+        # ObjectMovedEvent and then checks to see if there is a parent or not).
+        lifecycleevent.added(root_folder, root, root_name)
+        lifecycleevent.added(main_folder, root, main_folder.__name__)
 
         install_sites_folder(main_folder)
 

@@ -49,7 +49,7 @@ class BasedSiteManager(_ZLocalSiteManager):
     # in:
     # File "zope/site/configure.zcml", line 13.4-14.71
     # <implements interface="zope.annotation.interfaces.IAttributeAnnotatable" />
-    # Fortunately, Python's GC is precise and refcounting, so as long as we do not leak
+    # Fortunately, CPython's GC is precise and refcounting, so as long as we do not leak
     # refs to these, we're fine
 
     def _setBases(self, bases):
@@ -76,7 +76,7 @@ class BasedSiteManager(_ZLocalSiteManager):
     __getstate__ = __reduce__
 
 
-class HostSiteManager(BasedSiteManager):
+class HostSiteManager(BasedSiteManager): # pylint:disable=too-many-ancestors
     """
     A site manager that is intended to be used with globally
     registered IComponents plus the application persistent components.

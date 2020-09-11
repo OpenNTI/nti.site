@@ -10,10 +10,10 @@ from __future__ import absolute_import
 
 from hamcrest import is_
 from hamcrest import is_not
-from hamcrest import none
 from hamcrest import raises
 from hamcrest import calling
 from hamcrest import assert_that
+from hamcrest import same_instance
 does_not = is_not
 
 import fudge
@@ -23,6 +23,9 @@ from zope.interface import implementer
 from zope.component import globalSiteManager as BASE
 
 from zope.component.hooks import getSite
+from zope.component.hooks import setSite
+
+from zope.site.site import LocalSiteManager as LSM
 
 from z3c.baseregistry.baseregistry import BaseComponents
 
@@ -40,23 +43,45 @@ from nti.testing.base import AbstractTestBase
 
 class TestSubscriber(AbstractTestBase):
 
-    def test_root_folder_not_set(self):
+    def _check_site(self, new_site, expected_after_subscriber):
+        threadSiteSubscriber(new_site, None)
+        assert_that(getSite(), expected_after_subscriber)
+
+    def test_root_folder_not_set_if_site_installed(self):
+        installed = TrivialSite(LSM(None))
+        setSite(installed)
+
         @implementer(IRootFolder)
         class Root(object):
             pass
 
-        threadSiteSubscriber(Root(), None)
+        self._check_site(Root(), is_(same_instance(installed)))
 
-        assert_that(getSite(), is_(none()))
+    def test_main_folder_not_set_if_site_installed(self):
+        installed = TrivialSite(LSM(None))
+        setSite(installed)
 
-    def test_main_folder_not_set(self):
         @implementer(IMainApplicationFolder)
         class Main(object):
             pass
 
-        threadSiteSubscriber(Main(), None)
+        self._check_site(Main(), is_(same_instance(installed)))
 
-        assert_that(getSite(), is_(none()))
+    def test_root_folder_set_if_no_site_installed(self):
+        @implementer(IRootFolder)
+        class Root(object):
+            def getSiteManager(self):
+                return LSM(None)
+
+        self._check_site(Root(), is_(Root))
+
+    def test_main_folder_set_if_no_site_installed(self):
+        @implementer(IMainApplicationFolder)
+        class Main(object):
+            def getSiteManager(self):
+                return LSM(None)
+
+        self._check_site(Main(), is_(Main))
 
     @fudge.patch('nti.site.subscribers.getSite')
     def test_not_replace_same(self, fake_get):
