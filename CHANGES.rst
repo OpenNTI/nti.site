@@ -2,7 +2,7 @@
  Changes
 =========
 
-2.4.0 (unreleased)
+2.4.0 (2021-02-25)
 ==================
 
 - Substantially reduce the thresholds at which the
