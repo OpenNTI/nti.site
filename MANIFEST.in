@@ -10,9 +10,9 @@ include nose2.cfg
 include tox.ini
 include *.txt
 include .pylintrc
-recursive-include doc *.py
-recursive-include doc *.rst
-recursive-include doc Makefile
-recursive-exclude doc changelog.rst
+recursive-include docs *.py
+recursive-include docs *.rst
+recursive-include docs Makefile
+recursive-exclude docs changelog.rst
 recursive-include src *.zcml
 recursive-include .github *.yml
