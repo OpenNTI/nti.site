@@ -259,7 +259,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     #
     # When we're adapters, it will look like this:
     #
-    #   [ # ane argument
+    #   [ # one argument
     #     {iface: {name: factory},
     #      iface2: {name: factory}},
     #    # two arguments -> two levels
@@ -270,6 +270,16 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # a length of one
     #
     #    [{iface: {name: (utility,...)}}]
+    #
+    # With some additional work, we could also replace those tuples with a
+    # custom subclass of PersistentList. It would take a subclass because zope.interface
+    # does ``mapping.get(u'') + (value,)``, e.g, adding a tuple to it. So we'd need to
+    # implement ``__radd__`` and ``__add__``.
+    #
+    # The only time that  the `.utilities` object actually uses
+    # these ``_subscribers`` is to implement ``getAllUtilitiesRegisteredFor``; that's rarely called,
+    # right? Maybe rare enough that we could implement a different mechanism that doesn't need to
+    # persistently store the whole list at all.
 
     def _check_and_btree_maps(self, name):
         btree_type = self.btree_oo_type
