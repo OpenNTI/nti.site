@@ -11,11 +11,15 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+from BTrees import family64
 
 from zope import component
 from zope import interface
 
 from zope.component.hooks import getSite
+
+from zope.site.site import LocalSiteManager
+from zope.site.site import _LocalAdapterRegistry
 
 from zope.interface.interfaces import IComponents
 
@@ -32,6 +36,8 @@ from nti.site.transient import TrivialSite
 from nti.site.transient import HostSiteManager
 
 
+from zope.component.persistentregistry import PersistentComponents
+
 def get_alternate_site_name(site_name):
     """
     Check for a configured ISiteMapping
@@ -39,6 +45,7 @@ def get_alternate_site_name(site_name):
     site_mapping = component.queryUtility(ISiteMapping, name=site_name)
     if site_mapping is not None:
         return site_mapping.target_site_name
+    return None
 
 
 def find_site_components(site_names, check_alternate=False):
@@ -50,13 +57,17 @@ def find_site_components(site_names, check_alternate=False):
     for site_name in site_names:
         if not site_name:  # Empty/default. We want the global. This should only ever be at the end
             return None
+
         if check_alternate:
             site_name = get_alternate_site_name(site_name)
             if site_name is None:
                 continue
+
         components = component.queryUtility(IComponents, name=site_name)
         if components is not None:
             return components
+    return None
+
 _find_site_components = find_site_components  # BWC
 
 
@@ -177,11 +188,6 @@ def get_component_hierarchy_names(site=None, reverse=False):
         result.reverse()
     return result
 
-from zope.component.persistentregistry import PersistentComponents
-from zope.site.site import LocalSiteManager
-from zope.site.site import _LocalAdapterRegistry
-from BTrees import family64
-
 class WrongRegistrationTypeError(TypeError):
     """
     Raised if an adapter registration is of the wrong type.
@@ -226,24 +232,58 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     btree_oo_type = family64.OO.BTree
 
     #: The size at which the total number of registered adapters will
-    #: be switched to a BTree.
-    btree_provided_threshold = 5000
+    #: be switched to a BTree. This defaults to the BTree's maximum bucket
+    #: size before it splits. Thus, when we do this, we will wind up with two
+    #: new persistent objects.
+    btree_provided_threshold = 30
 
     #: The size at which individual keys in the lookup decision maps
-    #: will be switched to BTrees. The map threshold is lower than the provided threshold
-    #: because it is there are many keys in the map so the overall
-    #: effect is amplified.
-    btree_map_threshold = 2000
+    #: will be switched to BTrees. This defaults to the BTree's default
+    #: bucket size.
+    btree_map_threshold = 30
 
     # REMEMBER: Always check the type *before* checking the length.
     # Getting the length of a bare BTree is expensive and loads all the
     # buckets into memory.
+    # We want to be very careful not to load BTree buckets unless we have to.
 
-    def _check_and_btree_maps(self, byorder):
+    # Recall that when this is used as the `BTreePersistentComponents`
+    # `.adapters` attribute, our `_adapters` attribute will have many dictionaries
+    # in the list: one for each number of parameters needed for the adapters.
+    # When we are the `.utilities`, though, there will only be one
+    # map in the list. It will look like this:
+    #
+    #   [{iface : {name: utility, ...},
+    #     iface2: {name: utility, ...},
+    #     ...}]
+    #
+    # When we're adapters, it will look like this:
+    #
+    #   [ # ane argument
+    #     {iface: {name: factory},
+    #      iface2: {name: factory}},
+    #    # two arguments -> two levels
+    #    {iface: {iface2: {name, factory}}}
+    #   ]
+    #
+    # _subscribers is similar-ish, but often has only one named level with
+    # a length of one
+    #
+    #    [{iface: {name: (utility,...)}}]
+
+    def _check_and_btree_maps(self, name):
         btree_type = self.btree_oo_type
-        for i in range(len(byorder)):
-            mapping = byorder[i]
-            if not isinstance(mapping, btree_type) and len(mapping) > self.btree_map_threshold:
+        byorder = getattr(self, name)
+        # Can't use enumerate here, we mutate `byorder`
+        for i in range(len(byorder)): # pylint:disable=consider-using-enumerate
+            mapping = byorder[i] # {iface : {name: utility, ...}}
+            if (not isinstance(mapping, btree_type)
+                    and (len(mapping) > self.btree_map_threshold
+                             or name == '_subscribers')):
+                # _subscribers always becomes a BTree, because its payload is stashed
+                # away in immutable tuples
+                logger.info("Converting ordered mapping (name=%s len=%d) to %s.",
+                            len(mapping), btree_type)
                 mapping = btree_type(mapping)
                 byorder[i] = mapping
                 # self._adapters and self._subscribers are both simply
@@ -256,11 +296,14 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
             # things that are specifically providing a single interface
             # (Which is the most common in some usages). These maps are thus
             # liable to get to be the biggest. Note that we only replace at this
-            # level.
+            # level. (Recall that utilities *only* have one level.)
             replacement_vals = {}
-            for k, v in mapping.items():
-                if not isinstance(v, btree_type) and len(v) > self.btree_map_threshold:
-                    replacement_vals[k] = btree_type(v)
+            for iface, registrations in mapping.items():
+                if (not isinstance(registrations, btree_type)
+                        and len(registrations) > self.btree_map_threshold):
+                    logger.info("Converting bucket (k=%s, len=%d) to %s.",
+                                iface, len(registrations), btree_type)
+                    replacement_vals[iface] = btree_type(registrations)
 
             if replacement_vals:
                 mapping.update(replacement_vals)
@@ -271,13 +314,16 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
 
     def changed(self, originally_changed):
         # If we changed, check and migrate
+
         if originally_changed is self:
             if (not isinstance(self._provided, self.btree_family.OI.BTree)
-                and len(self._provided) > self.btree_provided_threshold):
+                    and len(self._provided) >= self.btree_provided_threshold):
+                logger.info("Converting _provided (len=%d) to %s.",
+                            len(self._provided), self.btree_family.OI.BTree)
                 self._provided = self.btree_family.OI.BTree(self._provided)
                 self._p_changed = True
-            for byorder in self._adapters, self._subscribers:
-                self._check_and_btree_maps(byorder)
+            for name in ('_adapters', '_subscribers'):
+                self._check_and_btree_maps(name)
         super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
 
 class BTreePersistentComponents(PersistentComponents):
@@ -294,8 +340,10 @@ class BTreePersistentComponents(PersistentComponents):
     btree_family = family64
 
     #: The size at which we will switch from maps to BTrees for registered adapters
-    #: and registered utilities (individually).
-    btree_threshold = 5000
+    #: and registered utilities (individually). This defaults to the maximum size
+    #: of a BTree bucket before it splits. Thus, when we do this, we will wind up with at
+    #: least two persistent objects.
+    btree_threshold = 30
 
     def _init_registries(self):
         # NOTE: We cannot simply replace these two attributes at runtime
@@ -312,6 +360,9 @@ class BTreePersistentComponents(PersistentComponents):
         self.utilities.__name__ = u'utilities'
 
     def _check_and_btree_map(self, mapping_name):
+        # The registrations are mappings that look like this:
+        #
+        #   {(iface, name): (utility, '', None)}
         btree_type = self.btree_family.OO.BTree
         mapping = getattr(self, mapping_name)
         if not isinstance(mapping, btree_type) and len(mapping) > self.btree_threshold:
@@ -320,20 +371,16 @@ class BTreePersistentComponents(PersistentComponents):
             # NOTE: This class is *NOT* Persistent, but its subclass BTreeLocalSiteManager
             # *is*. That's why __setstate__ is there and not here...it doesn't make much sense here.
 
-    def registerUtility(self, component=None, provided=None, name=u'', info=u'',
-                        event=True, factory=None):
-        result = None
-        result = super(BTreePersistentComponents, self).registerUtility(
-            component, provided, name, info, event, factory)
+    def registerUtility(self, *args, **kwargs):  # pylint:disable=arguments-differ
+        result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
         self._check_and_btree_map('_utility_registrations')
-
         return result
 
-    def registerAdapter(self, *args, **kwargs):
-        result = None
+    def registerAdapter(self, *args, **kwargs): # pylint:disable=arguments-differ
         result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
         self._check_and_btree_map('_adapter_registrations')
         return result
+
 
 class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
     """
@@ -343,6 +390,7 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
     .. caution:: This registry doesn't support bare class registrations.
        See :class:`BTreeLocalAdapterRegistry` for details.
     """
+    # pylint:disable=too-many-ancestors
 
     def __setstate__(self, state):
         super(BTreeLocalSiteManager, self).__setstate__(state)
@@ -357,7 +405,7 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
         # through methods we expose, so we'll get a chance to swizzle the object out.
         for reg in self.adapters, self.utilities:
             if (not isinstance(reg, BTreeLocalAdapterRegistry)
-                and isinstance(reg, _LocalAdapterRegistry)):
+                    and isinstance(reg, _LocalAdapterRegistry)):
                 # Only do this for classes we know about.
                 # Note: In Persistent 4.2.1, pure-python and C handle __class__ differently.
                 # Pure-python doesn't set _p_changed, but C does.
@@ -374,7 +422,7 @@ class SiteMapping(SchemaConfigured):
 
     :raises a :class:`SiteNotFoundError` object if no site found
     """
-
+    target_site_name = None
     createDirectFieldProperties(ISiteMapping)
 
     def get_target_site(self):

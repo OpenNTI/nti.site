@@ -616,6 +616,135 @@ class TestBTreeSiteMan(AbstractTestBase):
         x = comps.getMultiAdapter((object(), 'str'), IFoo)
         assert_that(x, is_(1))
 
+    def test_convert_many_named_utilities_one_interface(self):
+        # Testing the default thresholds. We're registering a bunch of
+        # utilities for a single interface.
+        from persistent.mapping import PersistentMapping
+        comps = BLSM(None)
+        assert comps.btree_threshold > 0
+        assert comps.utilities.btree_map_threshold > 0
+        assert comps.utilities.btree_provided_threshold > 0
+        assert comps.utilities.btree_provided_threshold == comps.utilities.btree_map_threshold
+        assert comps.btree_threshold == comps.utilities.btree_provided_threshold
+
+        @interface.implementer(IFoo)
+        class AUtility(object):
+            "Utility"
+
+        for i in range(comps.utilities.btree_map_threshold):
+            comps.registerUtility(AUtility(), name=u'%s' % i)
+            # The top-level registrations are a dictionary:
+            # {(iface, name): (utility, '', None)}
+            assert_that(comps._utility_registrations, is_(PersistentMapping))
+            collection = comps.utilities._adapters
+            # It's a list of one item...
+            assert_that(collection, is_(list))
+            assert_that(collection, has_length(1))
+            # ...and that one item is a dict containing dicts as
+            # values:
+            # [{IFoo: {name: utility}}]
+            assert_that(collection[0], is_(dict))
+            assert_that(collection[0], has_length(1))
+
+            assert_that(collection[0][IFoo], has_length(i + 1))
+            assert_that(collection[0][IFoo], is_(dict))
+
+        # Add another to hit the threshold
+        comps.registerUtility(AUtility())
+        # The top-level registrations have changed.
+        assert_that(comps._utility_registrations, is_(OOBTree))
+        # Both _adapters and _subscribers are still lists of
+        # one item
+        for collection in comps.utilities._adapters, comps.utilities._subscribers:
+            assert_that(collection, is_(list))
+            assert_that(collection, has_length(1))
+
+        # For the _adapters, we remain a dict of one item...
+        collection = comps.utilities._adapters
+        assert_that(collection[0], is_(dict))
+        assert_that(collection[0], has_length(1))
+        # ...where the inner item has changed to a BTree.
+        assert_that(collection[0][IFoo], is_(OOBTree))
+
+        # But _subscribers is special cased: It always becomes a BTree
+        collection = comps.utilities._subscribers
+        assert_that(collection[0], is_(OOBTree))
+        assert_that(collection[0], has_length(1))
+
+        # lookups and manipulating the registry still works fine.
+        assert_that(comps.getUtility(IFoo), is_(AUtility))
+        comps.registerUtility(AUtility(), name="FizzBinn")
+        assert_that(comps.getUtility(IFoo, 'FizzBinn'), is_(AUtility))
+        comps.unregisterUtility(comps.getUtility(IFoo))
+        assert_that(comps.queryUtility(IFoo), is_(none()))
+
+
+    def test_convert_many_utilities_many_interfaces(self):
+        # Testing the default thresholds. We're registering a bunch of
+        # utilities for a bunch of different interfaces.
+        from persistent.mapping import PersistentMapping
+        comps = BLSM(None)
+        assert comps.btree_threshold > 0
+        assert comps.utilities.btree_map_threshold > 0
+        assert comps.utilities.btree_provided_threshold > 0
+        assert comps.utilities.btree_provided_threshold == comps.utilities.btree_map_threshold
+        assert comps.btree_threshold == comps.utilities.btree_provided_threshold
+
+        class AUtility(object):
+            "Utility"
+
+        for i in range(comps.utilities.btree_map_threshold):
+            iface = type(IFoo)('Iface' + str(i), (IFoo,), {})
+            comps.registerUtility(AUtility(), provided=iface, name=u'%s' % i)
+            assert_that(comps._utility_registrations, is_(PersistentMapping))
+            collection = comps.utilities._adapters
+            # It's a list of one item...
+            assert_that(collection, is_(list))
+            assert_that(collection, has_length(1))
+            # ...and that one item is a dict containing dicts as
+            # values:
+            # [{iface: {name: utility}, ...}]
+            assert_that(collection[0], is_(dict))
+            assert_that(collection[0], has_length(i + 1))
+
+            assert_that(collection[0][iface], has_length(1))
+            assert_that(collection[0][iface], is_(dict))
+
+            collection = comps.utilities._subscribers
+            # It's a list of one item...
+            assert_that(collection, is_(list))
+            assert_that(collection, has_length(1))
+            # ...and that one item is a dict containing dicts as values,
+            # just as with _adapters, except that the dict is actually always
+            # a BTree
+            assert_that(collection[0], is_(OOBTree))
+            assert_that(collection[0], has_length(i + 1))
+
+            assert_that(collection[0][iface], has_length(1))
+            assert_that(collection[0][iface], is_(dict))
+
+        # Add another to hit the threshold
+        comps.registerUtility(AUtility(), provided=IFoo)
+        # The top-level registrations have changed
+        assert_that(comps._utility_registrations, is_(OOBTree))
+        # Both _adapters and _subscribers are still lists of
+        # one item, where that one item is now OOBTree
+        collection = comps.utilities._adapters
+        for collection in comps.utilities._adapters, comps.utilities._subscribers:
+            assert_that(collection, is_(list))
+            assert_that(collection, has_length(1))
+            assert_that(collection[0], is_(OOBTree))
+            assert_that(collection[0], has_length(comps.utilities.btree_map_threshold + 1))
+            # The small inner items are still dictionaries
+            assert_that(collection[0][IFoo], is_(dict))
+
+        # lookups and manipulating the registry still works fine.
+        assert_that(comps.getUtility(IFoo), is_(AUtility))
+        comps.registerUtility(AUtility(), provided=IFoo, name="FizzBinn")
+        assert_that(comps.getUtility(IFoo, 'FizzBinn'), is_(AUtility))
+        comps.unregisterUtility(comps.getUtility(IFoo), provided=IFoo)
+        assert_that(comps.queryUtility(IFoo), is_(none()))
+
 
 def _foo_factory(*_args):
     return 1
