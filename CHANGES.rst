@@ -2,11 +2,19 @@
  Changes
 =========
 
-2.3.1 (unreleased)
+2.4.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Substantially reduce the thresholds at which the
+  ``BTreePersistentComponents`` will convert internal data structures
+  from plain ``dict`` objects into ``BTree`` objects. This is intended
+  to reduce the pickle size of, and number of ghost objects created
+  by, components containing many utilities. Previously, the thresholds
+  were set very high and mostly worked for sites with many adapters.
 
+- Add support for Python 3.9.
+
+- Move to Github Actions from Travis CI.
 
 2.3.0 (2020-09-11)
 ==================

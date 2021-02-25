@@ -1,6 +1,8 @@
 [run]
-source = src/nti/
-omit = src/nti/site/tests/*
+source = nti.site
+# New in 5.0; required for the GHA coveralls submission.
+# Perhaps this obsoletes the source section in [paths]?
+relative_files = True
 
 [report]
 # Coverage is run on Linux under cPython 2 and 3,
@@ -16,3 +18,7 @@ exclude_lines =
     if sys.platform == 'win32':
     if mswindows:
     if is_windows:
+
+# Local Variables:
+# mode: conf
+# End:

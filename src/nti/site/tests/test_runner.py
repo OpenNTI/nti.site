@@ -58,7 +58,7 @@ class TestRunner(base.AbstractTestBase):
                 return self._root
 
         c = MockConn()
-        c._root[u'nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
+        c.root()[u'nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
         def handler():
             return 42
 
@@ -132,7 +132,7 @@ class TestRunner(base.AbstractTestBase):
             def __getattribute__(self, name):
                 if name in ('__doc__', '__name__'):
                     raise AttributeError(name)
-                return object.__getattribute__(self, name)
+                return object.__getattribute__(self, name) # pragma: no cover
 
             def __call__(self):
                 assert_that(transaction.get().description, is_(''))
