@@ -15,6 +15,6 @@ include/
 lib/
 parts/
 
-doc/_build
-doc/__pycache__
+docs/_build
+docs/__pycache__
 /.settings/
