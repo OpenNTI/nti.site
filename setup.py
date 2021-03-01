@@ -9,6 +9,7 @@ TESTS_REQUIRE = [
     'z3c.baseregistry',
     'zope.testrunner',
     'coverage',
+    'zope.testing',
 ]
 
 

@@ -293,7 +293,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
                 # _subscribers always becomes a BTree, because its payload is stashed
                 # away in immutable tuples
                 logger.info("Converting ordered mapping (name=%s len=%d) to %s.",
-                            len(mapping), btree_type)
+                            name, len(mapping), btree_type)
                 mapping = btree_type(mapping)
                 byorder[i] = mapping
                 # self._adapters and self._subscribers are both simply

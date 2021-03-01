@@ -5,7 +5,8 @@
 2.4.1 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Fix a ``TypeError`` in logging during the conversion performed by
+  ``BTreePersistentComponents``.
 
 
 2.4.0 (2021-02-25)
