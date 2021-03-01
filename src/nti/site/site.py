@@ -281,6 +281,12 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # right? Maybe rare enough that we could implement a different mechanism that doesn't need to
     # persistently store the whole list at all.
 
+    _v_setting_state = True # See comment in ``__setstate__``
+
+    def __init__(self, *args, **kwargs):
+        super(BTreeLocalAdapterRegistry,self).__init__(*args, **kwargs)
+        self._v_setting_state = False
+
     def _check_and_btree_maps(self, name):
         btree_type = self.btree_oo_type
         byorder = getattr(self, name)
@@ -325,6 +331,9 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     def changed(self, originally_changed):
         # If we changed, check and migrate
 
+        if self._v_setting_state:
+            return super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
+
         if originally_changed is self:
             if (not isinstance(self._provided, self.btree_family.OI.BTree)
                     and len(self._provided) >= self.btree_provided_threshold):
@@ -335,6 +344,17 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
             for name in ('_adapters', '_subscribers'):
                 self._check_and_btree_maps(name)
         super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
+
+    def __setstate__(self, state):
+        try:
+            # When our super runs our instance's ``_v_setting_state`` gets
+            # wiped out, so we then rely on the class attribute which is ``True``.
+            # When control comes back to us we can then mark that we are no
+            # longer setting state locally
+            super(BTreeLocalAdapterRegistry, self).__setstate__(state)
+        finally:
+            self._v_setting_state = False
+        
 
 class BTreePersistentComponents(PersistentComponents):
     """
@@ -382,12 +402,20 @@ class BTreePersistentComponents(PersistentComponents):
             # *is*. That's why __setstate__ is there and not here...it doesn't make much sense here.
 
     def registerUtility(self, *args, **kwargs):  # pylint:disable=arguments-differ
-        result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
+        try:
+            self.utilities._v_setting_state = False
+            result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
+        finally:
+            self.utilities._v_setting_state = True
         self._check_and_btree_map('_utility_registrations')
         return result
 
     def registerAdapter(self, *args, **kwargs): # pylint:disable=arguments-differ
-        result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        try:
+            self.adapters._v_setting_state = False
+            result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        finally:
+            self.adapters._v_setting_state = True
         self._check_and_btree_map('_adapter_registrations')
         return result
 

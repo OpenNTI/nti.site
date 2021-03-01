@@ -280,7 +280,6 @@ class TestBTreeSiteMan(AbstractTestBase):
             assert_that(new_sub.adapters.__bases__[0], is_(BTreeLocalAdapterRegistry))
             assert_that(new_sub.utilities.__bases__[0], is_(BTreeLocalAdapterRegistry))
 
-
     def _store_base_subs_in_zodb(self, storage):
         db = DB(storage)
         conn = db.open()
@@ -521,6 +520,46 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         x = new_sub.queryUtility(IMock, u'foo')
         assert_that(x, is_(MockSite))
+
+    def test_no_swap_on_activate(self):
+        storage = DemoStorage()
+
+        self._store_base_subs_in_zodb(storage)
+
+        db = DB(storage)
+        conn = db.open()
+        new_base = conn.root()['base']
+        new_base._p_activate()
+
+        # A high enough threshold here that registering a utility doesn't cause a conversion
+        new_base.utilities.btree_provided_threshold = 2
+        new_base.utilities.btree_map_threshold = 2
+
+        new_base.registerUtility(MockSite(),
+                                 provided=IFoo)
+
+        # We're still working with dict's b/c we're under the threshold
+        assert_that(new_base.utilities._provided, is_(dict))
+        assert_that(new_base.utilities._adapters[0], is_(dict))
+
+        # Now set our threshold lower so the next eligible operation would convert
+        new_base.utilities.btree_provided_threshold = 0
+        new_base.utilities.btree_map_threshold = 0
+
+        # Close things down and open up a new connection
+        transaction.commit()
+        conn.close()
+        db.close()
+
+        db = DB(storage)
+        conn = db.open()
+
+        new_base = conn.root()['base']
+        new_base._p_activate()
+
+        # Activating utilities used to potentially convert us. We no longer do
+        assert_that(new_base.utilities._provided, is_(dict))
+        assert_that(new_base.utilities._adapters[0], is_(dict))
 
 
     def test_convert_with_utility_registered_on_class(self):
