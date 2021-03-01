@@ -207,7 +207,8 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     A persistent adapter registry that can switch its internal
     data structures to be more persistent friendly when they get large.
 
-    .. caution:: This registry doesn't support registrations on bare
+    .. caution::
+       This registry doesn't support registrations on bare
        classes. This is because the Implements and Provides objects
        returned on bare classes do not support comparison or equality
        and hence cannot be used in BTrees. (They only hash and compare
@@ -241,6 +242,39 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     #: will be switched to BTrees. This defaults to the BTree's default
     #: bucket size.
     btree_map_threshold = 30
+
+    # We want to be careful: Our ``changed()`` method is invoked as
+    # part of ``__setstate__``
+    # (``PersistentAdapterRegistry.__setstate__`` sets ``__bases__``,
+    # which invokes ``changed()``), but we never want to do conversion
+    # at that time, we only want to do conversion as part of a normal
+    # ``(un)register()`` or ``(un)subscribe`` call. We use a volatile
+    # attribute to determine when this is safe to do. But because
+    # ``Persistent.__setstate__()`` clears the ``__dict__`` (and that
+    # happens before ``PersistentAdapterRegistry.__setstate__`` sets
+    # the bases), we invert the sense of the test, leaving the default
+    # as false.
+    _v_safe_to_convert = False
+
+    def __init__(self, *args, **kwargs):
+        # In case of a threshold of 0, let the top-level things be
+        # converted now.
+        self._v_safe_to_convert = True
+        super(BTreeLocalAdapterRegistry, self).__init__(*args, **kwargs)
+
+    def __setstate__(self, state):
+        super(BTreeLocalAdapterRegistry, self).__setstate__(state)
+        # We can only assert this here, not in the method we're about to call.
+        # See ``BTreeLocalSiteManager.__setstate__``.
+        assert not self._v_safe_to_convert
+        # Calling via the class avoids a nested call to _p_activate() in the
+        # pure-Python implementation.
+        BTreeLocalAdapterRegistry._btlar_after_setstate(self)
+
+    def _btlar_after_setstate(self):
+        # A hook for legacy conversions. See
+        # ``BTreeLocalSiteManager.__setstate__``
+        self._v_safe_to_convert = True
 
     # REMEMBER: Always check the type *before* checking the length.
     # Getting the length of a bare BTree is expensive and loads all the
@@ -289,7 +323,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
             mapping = byorder[i] # {iface : {name: utility, ...}}
             if (not isinstance(mapping, btree_type)
                     and (len(mapping) > self.btree_map_threshold
-                             or name == '_subscribers')):
+                         or name == '_subscribers')):
                 # _subscribers always becomes a BTree, because its payload is stashed
                 # away in immutable tuples
                 logger.info("Converting ordered mapping (name=%s len=%d) to %s.",
@@ -324,8 +358,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
 
     def changed(self, originally_changed):
         # If we changed, check and migrate
-
-        if originally_changed is self:
+        if originally_changed is self and self._v_safe_to_convert:
             if (not isinstance(self._provided, self.btree_family.OI.BTree)
                     and len(self._provided) >= self.btree_provided_threshold):
                 logger.info("Converting _provided (len=%d) to %s.",
@@ -420,7 +453,24 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
                 # Note: In Persistent 4.2.1, pure-python and C handle __class__ differently.
                 # Pure-python doesn't set _p_changed, but C does.
                 changed = reg._p_changed
+                # Assigning to ``__class__`` will activate the object, but
+                # it will do so using the ``__setstate__`` of the old
+                # class (naturally), not the special one of
+                # BTreeLocalAdapterRegistry that makes it safe to do conversions;
+                # we do that manually.
+                #
+                # Of course, I lied a bit. The Pure-Python
+                # implementation of persistent (e.g., as used on PyPy)
+                # actually uses the ``__setstate__`` of the *new*
+                # class (because assigning to ``__class__`` doesn't
+                # actually activate the object). So
+                # ``_btlar_after_setstate`` may get called twice in
+                # that implementation. Since swizzling ``__class__``
+                # is poorly defined, this may or may not be considered
+                # a bug. See
+                # https://github.com/zopefoundation/persistent/issues/155
                 reg.__class__ = BTreeLocalAdapterRegistry
+                reg._btlar_after_setstate()
                 if not changed:
                     reg._p_changed = False
 
