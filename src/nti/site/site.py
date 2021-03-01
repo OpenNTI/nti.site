@@ -402,20 +402,12 @@ class BTreePersistentComponents(PersistentComponents):
             # *is*. That's why __setstate__ is there and not here...it doesn't make much sense here.
 
     def registerUtility(self, *args, **kwargs):  # pylint:disable=arguments-differ
-        try:
-            self.utilities._v_setting_state = False
-            result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
-        finally:
-            self.utilities._v_setting_state = True
+        result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
         self._check_and_btree_map('_utility_registrations')
         return result
 
     def registerAdapter(self, *args, **kwargs): # pylint:disable=arguments-differ
-        try:
-            self.adapters._v_setting_state = False
-            result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
-        finally:
-            self.adapters._v_setting_state = True
+        result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
         self._check_and_btree_map('_adapter_registrations')
         return result
 
