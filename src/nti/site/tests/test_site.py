@@ -619,7 +619,12 @@ class TestBTreeSiteMan(AbstractTestBase):
     def test_convert_many_named_utilities_one_interface(self):
         # Testing the default thresholds. We're registering a bunch of
         # utilities for a single interface.
+        from zope.testing.loggingsupport import InstalledHandler
         from persistent.mapping import PersistentMapping
+
+        log = InstalledHandler('nti.site.site')
+        self.addCleanup(log.uninstall)
+
         comps = BLSM(None)
         assert comps.btree_threshold > 0
         assert comps.utilities.btree_map_threshold > 0
@@ -678,6 +683,9 @@ class TestBTreeSiteMan(AbstractTestBase):
         comps.unregisterUtility(comps.getUtility(IFoo))
         assert_that(comps.queryUtility(IFoo), is_(none()))
 
+        logs = str(log)
+        self.assertIn('Converting ordered mapping', logs)
+        self.assertIn('Converting bucket', logs)
 
     def test_convert_many_utilities_many_interfaces(self):
         # Testing the default thresholds. We're registering a bunch of
