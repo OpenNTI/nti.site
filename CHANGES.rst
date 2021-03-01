@@ -2,7 +2,7 @@
  Changes
 =========
 
-2.4.1 (unreleased)
+2.4.1 (2021-03-01)
 ==================
 
 - Fix a ``TypeError`` in logging during the conversion performed by
