@@ -56,6 +56,7 @@ from nti.site.tests import SharedConfiguringTestLayer
 
 from nti.testing.matchers import validly_provides
 from nti.testing.matchers import is_false
+from nti.testing.matchers import is_true
 from nti.testing.base import AbstractTestBase
 
 from persistent import Persistent
@@ -254,8 +255,11 @@ from BTrees import family64
 OOBTree = family64.OO.BTree
 OIBTree = family64.OI.BTree
 
-class TestBTreeSiteMan(AbstractTestBase):
+@interface.implementer(IFoo)
+class GlobalUtilityImplementingFoo(object):
+    pass
 
+class TestBTreeSiteMan(AbstractTestBase):
 
     def test_pickle_setstate_swap_class(self):
         base_comps = BLSM(None)
@@ -368,10 +372,11 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         new_base.adapters.btree_provided_threshold = 0
         new_base.adapters.btree_map_threshold = 1
+        assert_that(new_base.adapters._v_safe_to_convert, is_true())
+
         # Note: this used-to cause btree-ing the map to fail. The
         # implementedBy callable previously had default comparison and can't be
         # stored in a btree. As of zope.interface 4.3.0, this is fixed.
-
         new_base.registerAdapter(_foo_factory,
                                  required=(object,),
                                  provided=IFoo)
@@ -418,7 +423,6 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base = conn.root()['base']
         new_base._p_activate()
         new_sub = conn.root()['sub']
-
 
         new_base.utilities.btree_provided_threshold = 0
         new_base.utilities.btree_map_threshold = 0
@@ -478,6 +482,7 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         new_base.utilities.btree_provided_threshold = 0
         new_base.utilities.btree_map_threshold = 0
+        assert_that(new_base.utilities._v_safe_to_convert, is_true())
 
         new_base.registerUtility(MockSite(),
                                  provided=IFoo)
@@ -616,6 +621,19 @@ class TestBTreeSiteMan(AbstractTestBase):
         x = comps.getMultiAdapter((object(), 'str'), IFoo)
         assert_that(x, is_(1))
 
+    def _make_comps_filled_with_utility(self, utility_factory, iter_checker=lambda _comps, _i: None):
+        comps = BLSM(None)
+        assert comps.btree_threshold > 0
+        assert comps.utilities.btree_map_threshold > 0
+        assert comps.utilities.btree_provided_threshold > 0
+        assert comps.utilities.btree_provided_threshold == comps.utilities.btree_map_threshold
+        assert comps.btree_threshold == comps.utilities.btree_provided_threshold
+
+        for i in range(comps.utilities.btree_map_threshold):
+            comps.registerUtility(utility_factory(), name=u'%s' % i)
+            iter_checker(comps, i)
+        return comps
+
     def test_convert_many_named_utilities_one_interface(self):
         # Testing the default thresholds. We're registering a bunch of
         # utilities for a single interface.
@@ -625,19 +643,11 @@ class TestBTreeSiteMan(AbstractTestBase):
         log = InstalledHandler('nti.site.site')
         self.addCleanup(log.uninstall)
 
-        comps = BLSM(None)
-        assert comps.btree_threshold > 0
-        assert comps.utilities.btree_map_threshold > 0
-        assert comps.utilities.btree_provided_threshold > 0
-        assert comps.utilities.btree_provided_threshold == comps.utilities.btree_map_threshold
-        assert comps.btree_threshold == comps.utilities.btree_provided_threshold
-
         @interface.implementer(IFoo)
         class AUtility(object):
             "Utility"
 
-        for i in range(comps.utilities.btree_map_threshold):
-            comps.registerUtility(AUtility(), name=u'%s' % i)
+        def iter_checker(comps, i):
             # The top-level registrations are a dictionary:
             # {(iface, name): (utility, '', None)}
             assert_that(comps._utility_registrations, is_(PersistentMapping))
@@ -653,6 +663,8 @@ class TestBTreeSiteMan(AbstractTestBase):
 
             assert_that(collection[0][IFoo], has_length(i + 1))
             assert_that(collection[0][IFoo], is_(dict))
+
+        comps = self._make_comps_filled_with_utility(AUtility, iter_checker)
 
         # Add another to hit the threshold
         comps.registerUtility(AUtility())
@@ -752,6 +764,46 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(comps.getUtility(IFoo, 'FizzBinn'), is_(AUtility))
         comps.unregisterUtility(comps.getUtility(IFoo), provided=IFoo)
         assert_that(comps.queryUtility(IFoo), is_(none()))
+
+    def test_no_conversion_during__p_activate(self):
+        from persistent.mapping import PersistentMapping
+
+        comps = self._make_comps_filled_with_utility(GlobalUtilityImplementingFoo)
+        comps.btree_threshold = 0
+        comps.utilities.btree_map_threshold = 0
+        comps.utilities.btree_provided_threshold = 0
+
+        db = DB(DemoStorage())
+        transaction.begin()
+        conn = db.open()
+        conn.root()['key'] = comps
+        del comps
+        transaction.commit()
+
+        transaction.begin()
+        conn2 = db.open()
+        comps = conn2.root()['key']
+
+        # Nothing has changed to BTrees, even though the threshold is now 0
+        assert_that(comps._utility_registrations, is_(PersistentMapping))
+        collection = comps.utilities._adapters
+        # It's a list of one item...
+        assert_that(collection, is_(list))
+        assert_that(collection, has_length(1))
+        # ...and that one item is a dict containing dicts as
+        # values:
+        # [{iface: {name: utility}, ...}]
+        iface = IFoo
+        assert_that(collection[0], is_(dict))
+        assert_that(collection[0], has_length(1))
+
+        assert_that(collection[0][iface], has_length(30))
+        assert_that(collection[0][iface], is_(dict))
+
+        # Even though nothing changed, it is safe to do so at the next registration
+        assert_that(comps.utilities._v_safe_to_convert, is_true())
+        assert_that(comps.adapters._v_safe_to_convert, is_true())
+
 
 
 def _foo_factory(*_args):

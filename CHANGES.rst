@@ -5,7 +5,10 @@
 2.4.2 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Fix ``BTreePersistentComponents`` attempting BTree conversion during
+  ``_p_activate()``. Only actual mutations via registering or
+  unregistering utilities, adapters or subscribers should trigger
+  conversion. See :issue:`38`.
 
 
 2.4.1 (2021-03-01)
