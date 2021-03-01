@@ -441,6 +441,7 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
                 # Pure-python doesn't set _p_changed, but C does.
                 changed = reg._p_changed
                 reg.__class__ = BTreeLocalAdapterRegistry
+                reg._v_setting_state = False
                 if not changed:
                     reg._p_changed = False
 
