@@ -427,6 +427,28 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
                 self._check_and_btree_maps(name)
         super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
 
+    def _utility_subscribed(self, provided, value):
+        # Internal method, used only for emergency conversions.
+        required = ()
+        name = u''
+        order = len(required)
+        byorder = self._subscribers
+        if order >= len(byorder):
+            return False
+
+        components = byorder[order]
+        key = required + (provided,)
+
+        for k in key:
+            d = components.get(k)
+            if d is None:
+                return False
+            components = d
+
+        sub_vals = components.get(name, ())
+        return value in sub_vals
+
+
 class BTreePersistentComponents(PersistentComponents):
     """
     Persistent components that will be friendly to ZODB when they get large.
@@ -482,6 +504,49 @@ class BTreePersistentComponents(PersistentComponents):
         self._check_and_btree_map('_adapter_registrations')
         return result
 
+    def rebuildUtilityRegistryFromLocalCache(self):
+        """
+        Emergency maintenance method to rebuild the ``.utilities`` registry
+        from the local copy maintained in this object.
+
+        .. versionadded:: 2.4.3
+        """
+        regs = dict(self._utility_registrations)
+        utils = self.utilities
+        needed_registered = 0
+        did_not_register = 0
+        needed_subscribed = 0
+        did_not_subscribe = 0
+
+
+        # Avoid BTree migration during all of this
+        assert 'changed' not in utils.__dict__
+        utils.changed = lambda _: None
+
+        try:
+            for (provided, name), (value, _info, _factory) in regs.items():
+                if utils.registered((), provided, name) != value:
+                    utils.register((), provided, name, value)
+                    needed_registered += 1
+                else:
+                    did_not_register += 1
+
+                if not utils._utility_subscribed(provided, value):
+                    needed_subscribed += 1
+                    utils.subscribe((), provided, value)
+                else:
+                    did_not_subscribe += 1
+        finally:
+            del utils.changed
+
+            utils.changed(utils)
+
+        return {
+            'needed_registered': needed_registered,
+            'did_not_register': did_not_register,
+            'needed_subscribed': needed_subscribed,
+            'did_not_subscribe': did_not_subscribe
+        }
 
 class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
     """

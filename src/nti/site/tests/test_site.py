@@ -816,7 +816,58 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(comps.utilities._v_safe_to_convert, is_true())
         assert_that(comps.adapters._v_safe_to_convert, is_true())
 
+    def test_rebuildUtilityRegistryFromLocalCache(self):
+        comps = self._make_comps_filled_with_utility(GlobalUtilityImplementingFoo)
 
+        orig_generation = comps.utilities._generation
+
+        orig_adapters = comps.utilities._adapters
+        assert_that(orig_adapters, has_length(1))
+        assert_that(orig_adapters[0], has_length(1))
+        assert_that(orig_adapters[0][IFoo], has_length(30))
+
+        orig_subscribers = comps.utilities._subscribers
+        assert_that(orig_subscribers, has_length(1))
+        assert_that(orig_subscribers[0], has_length(1))
+        assert_that(orig_subscribers[0][IFoo], has_length(1))
+        assert_that(orig_subscribers[0][IFoo][u''], has_length(30))
+
+        # Blow a bunch of them away
+        new_adapters = comps.utilities._adapters = type(orig_adapters)()
+        new_adapters.append({})
+        d = new_adapters[0][IFoo] = {}
+        for name in range(10):
+            name = type(u'')(str(name))
+            d[name] = orig_adapters[0][IFoo][name]
+
+        self.assertNotEqual(orig_adapters, new_adapters)
+
+        new_subscribers = comps.utilities._subscribers = type(orig_subscribers)()
+        new_subscribers.append({})
+        d = new_subscribers[0][IFoo] = {}
+        d[u''] = ()
+
+        for name in range(5, 12): # 12 - 5 = 7
+            name = type(u'')(str(name))
+            comp = orig_adapters[0][IFoo][name]
+            d[u''] += (comp,)
+
+        rebuild_results = comps.rebuildUtilityRegistryFromLocalCache()
+
+        # The generation only got incremented once
+        assert_that(comps.utilities._generation, is_(orig_generation + 1))
+        assert_that(rebuild_results, is_({
+            'did_not_register': 10,
+            'needed_registered': 20,
+
+            'did_not_subscribe': 7,
+            'needed_subscribed': 23
+        }))
+        assert_that(new_adapters, is_(orig_adapters))
+        assert_that(len(new_subscribers[0][IFoo][u'']),
+                    is_(len(orig_subscribers[0][IFoo][u''])))
+        for orig_subscriber in orig_subscribers[0][IFoo][u'']:
+            self.assertIn(orig_subscriber, new_subscribers[0][IFoo][u''])
 
 def _foo_factory(*_args):
     return 1
