@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
 # pylint:disable=too-many-ancestors
+
+from contextlib import contextmanager
 
 from hamcrest import is_
 from hamcrest import is_not
@@ -821,3 +823,134 @@ class TestPermissiveOOBTree(unittest.TestCase):
         key = object() # default comparison
 
         assert_that(tree.get(key), is_(none()))
+
+
+def _make_many_interfaces():
+    ifaces = []
+    for i in range(100):
+        ifaces.append(
+            type(Interface)(
+                'IMany' + str(i),
+                (Interface,),
+                {}
+            )
+        )
+    return ifaces
+
+MANY_IFACES = _make_many_interfaces()
+_iface = None
+for _iface in MANY_IFACES:
+    globals()[_iface.__name__] = _iface
+del _iface
+
+
+class TestBTreeLocalAdapterRegistry(unittest.TestCase):
+
+    def setUp(self):
+        super(TestBTreeLocalAdapterRegistry, self).setUp()
+        self.storage = DemoStorage()
+
+    @contextmanager
+    def new_zodb_conn(self):
+        db = DB(self.storage)
+        transaction.begin()
+        conn = db.open()
+        try:
+            yield conn
+        finally:
+            transaction.commit()
+        conn.close()
+        db.close()
+
+    def _check_one_utility(self, reg,
+                           outer_length=1, outer_type=dict,
+                           inner_length=30, inner_type=dict):
+        collection = reg._adapters
+        # It's a list of one item...
+        assert_that(collection, is_(list))
+        assert_that(collection, has_length(1))
+        # ...and that one item is a dict containing dicts as
+        # values:
+        # [{iface: {name: utility}, ...}]
+        iface = IFoo
+        assert_that(collection[0], is_(outer_type))
+        assert_that(collection[0], has_length(outer_length))
+
+        assert_that(collection[0][iface], has_length(inner_length))
+        assert_that(collection[0][iface], is_(inner_type))
+
+    def _register_one(self, reg, required=(), provided=IFoo,
+                      name=u'', comp=None):
+        if comp is None:
+            comp = GlobalUtilityImplementingFoo()
+        reg.register(required, provided, str(name), comp)
+
+    def test_zodb_storage_with_conversion_one_interface(self):
+        # Once we do a BTree conversion, future registrations also
+        # persist as expected. This is a test for the high level
+        # registerUtility method, which always uses `required=()`.
+        # The top-level is small, but the bottom levels are big.
+        # Note that there's only one level of nesting because `required=()`.
+        reg = BTreeLocalAdapterRegistry()
+
+        assert reg.btree_map_threshold > 0
+
+        for i in range(reg.btree_map_threshold):
+            self._register_one(reg, name=i)
+
+        self._check_one_utility(reg)
+
+        # Store it
+        with self.new_zodb_conn() as conn:
+            conn.root()['registry'] = reg
+
+        # Add another and convert, storing it
+        with self.new_zodb_conn() as conn:
+            reg = conn.root()['registry']
+            self._register_one(reg)
+            self._check_one_utility(reg, inner_length=31, inner_type=OOBTree)
+            assert_that(reg, has_property('_p_changed', is_true()))
+
+        # re-open, verify it is found
+        with self.new_zodb_conn() as conn:
+            reg = conn.root()['registry']
+            self._check_one_utility(reg, inner_length=31, inner_type=OOBTree)
+
+    def test_zodb_storage_with_conversion_many_interfaces(self):
+        # As for ``test_zodb_storage_with_conversion_one_interface``, but
+        # making the top-level large and the bottom levels small.
+        reg = BTreeLocalAdapterRegistry()
+
+        assert len(MANY_IFACES) > reg.btree_map_threshold
+
+        # Make a wide and shallow tree
+        self._register_one(reg)
+
+        for iface in MANY_IFACES:
+            self._register_one(reg, provided=iface)
+
+        self._check_one_utility(reg,
+                                outer_length=len(MANY_IFACES) + 1,
+                                outer_type=OOBTree,
+                                inner_length=1)
+
+        with self.new_zodb_conn() as conn:
+            conn.root()['registry'] = reg
+
+        # Add another and store
+        with self.new_zodb_conn() as conn:
+            reg = conn.root()['registry']
+            self._register_one(reg, name='two')
+            self._check_one_utility(reg,
+                                    outer_length=len(MANY_IFACES) + 1,
+                                    outer_type=OOBTree,
+                                    inner_length=2)
+            assert_that(reg, has_property('_p_changed', is_true()))
+
+        # re-open, verify it is found
+        with self.new_zodb_conn() as conn:
+            reg = conn.root()['registry']
+            self._check_one_utility(reg,
+                                    outer_length=len(MANY_IFACES) + 1,
+                                    outer_type=OOBTree,
+                                    inner_length=2)
