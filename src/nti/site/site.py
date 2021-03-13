@@ -434,7 +434,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
         order = len(required)
         byorder = self._subscribers
         if order >= len(byorder):
-            return False
+            return False # pragma: no cover
 
         components = byorder[order]
         key = required + (provided,)
@@ -442,7 +442,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
         for k in key:
             d = components.get(k)
             if d is None:
-                return False
+                return False # pragma: no cover
             components = d
 
         sub_vals = components.get(name, ())
