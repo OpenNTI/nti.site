@@ -301,7 +301,8 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     #   ]
     #
     # _subscribers is similar-ish, but often has only one named level with
-    # a length of one
+    # a length of one (in practice it will always have a length of one, but
+    # that's not technically required)
     #
     #    [{iface: {name: (utility,...)}}]
     #
@@ -314,6 +315,79 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     # these ``_subscribers`` is to implement ``getAllUtilitiesRegisteredFor``; that's rarely called,
     # right? Maybe rare enough that we could implement a different mechanism that doesn't need to
     # persistently store the whole list at all.
+    #
+    # IMPORTANT: Once a parent mapping has become a BTree, all of its children mappings
+    # must ALSO become BTrees. This is because the mappings are mutated in-place as registrations
+    # are added or removed, and doing that doesn't let the BTree know that it needs to become
+    # ``_p_changed``; trying to figure out which child dictionary actually changed *could* be done
+    # (err, somehow) but we'd actually need to set the ``_p_changed`` on a BTree *bucket*,
+    # and those aren't directly accessible. So: once a BTree, it's BTrees all the way down.
+
+    def __mapping_needs_converted(self, path, mapping, parent_is_btree, btree_type):
+        # We need to convert if the parent is a btree (and we're not a btree already)
+        # OR we're not a btree and we're too long
+        regs_is_btree = isinstance(mapping, btree_type)
+
+        needs_converted = (
+            parent_is_btree and not regs_is_btree
+        ) or (
+            not regs_is_btree and len(mapping) > self.btree_map_threshold
+        )
+        if needs_converted:
+            logger.info("Converting bucket (k=%s, len=%d) to %s.",
+                        path, len(mapping), btree_type)
+
+        return needs_converted
+
+    def __btree_map(self, path, mapping, depth, max_depth,
+                    parent_is_btree,
+                    btree_type):
+        # type: (tuple, dict, int, int, bool, type) -> dict
+        #
+        # path is just for information
+        if self.__mapping_needs_converted(
+                path, mapping, parent_is_btree, btree_type
+        ):
+            mapping = btree_type(mapping)
+            # Force conversion of child leaves
+            parent_is_btree = True
+            #changed_below = True
+        else:
+            parent_is_btree = parent_is_btree or isinstance(mapping, btree_type)
+
+        replacement_vals = {}
+        if depth < max_depth:
+            # Still have a layer of dicts to go through
+            for k, v in mapping.items():
+                new_v = self.__btree_map(
+                    path + (k,),
+                    v,
+                    depth + 1,
+                    max_depth,
+                    parent_is_btree,
+                    btree_type
+                )
+                if new_v is not v:
+                    replacement_vals[k] = new_v
+        else:
+            # depth == maxdepth
+            # we hit bottom. The values will be mappings that may need
+            # converted. This can be done without doing anything to the parents
+            for iface, registrations in mapping.items():
+                needs_converted = self.__mapping_needs_converted(
+                    path + (iface,),
+                    registrations,
+                    parent_is_btree,
+                    btree_type
+                )
+                if needs_converted:
+                    replacement_vals[iface] = btree_type(registrations)
+
+        if replacement_vals:
+            mapping.update(replacement_vals)
+            if depth == 0:
+                self._p_changed = True
+        return mapping
 
     def _check_and_btree_maps(self, name):
         btree_type = self.btree_oo_type
@@ -321,44 +395,28 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
         # Can't use enumerate here, we mutate `byorder`
         for i in range(len(byorder)): # pylint:disable=consider-using-enumerate
             mapping = byorder[i] # {iface : {name: utility, ...}}
-            if (not isinstance(mapping, btree_type)
-                    and (len(mapping) > self.btree_map_threshold
-                         or name == '_subscribers')):
+            new_mapping = self.__btree_map(
+                (name, i),
+                mapping,
+                0,
+                i,
                 # _subscribers always becomes a BTree, because its payload is stashed
                 # away in immutable tuples
-                logger.info("Converting ordered mapping (name=%s len=%d) to %s.",
-                            name, len(mapping), btree_type)
-                mapping = btree_type(mapping)
-                byorder[i] = mapping
+                name == '_subscribers',
+                btree_type
+            )
+            if new_mapping is not mapping:
+                byorder[i] = new_mapping
                 # self._adapters and self._subscribers are both simply
                 # of type `list` (not persistent list) so when we make changes
                 # to them, we need to set self._p_changed
                 self._p_changed = True
 
-            # This is the first level of the decision tree, and thus
-            # the least discriminatory. If i is 0, then this is only
-            # things that are specifically providing a single interface
-            # (Which is the most common in some usages). These maps are thus
-            # liable to get to be the biggest. Note that we only replace at this
-            # level. (Recall that utilities *only* have one level.)
-            replacement_vals = {}
-            for iface, registrations in mapping.items():
-                if (not isinstance(registrations, btree_type)
-                        and len(registrations) > self.btree_map_threshold):
-                    logger.info("Converting bucket (k=%s, len=%d) to %s.",
-                                iface, len(registrations), btree_type)
-                    replacement_vals[iface] = btree_type(registrations)
-
-            if replacement_vals:
-                mapping.update(replacement_vals)
-                if not isinstance(mapping, btree_type):
-                    # This may or may not be a btree, depending on its own size,
-                    # so we may need to mark ourself as changed.
-                    self._p_changed = True
 
     def changed(self, originally_changed):
         # If we changed, check and migrate
         if originally_changed is self and self._v_safe_to_convert:
+
             if (not isinstance(self._provided, self.btree_family.OI.BTree)
                     and len(self._provided) >= self.btree_provided_threshold):
                 logger.info("Converting _provided (len=%d) to %s.",

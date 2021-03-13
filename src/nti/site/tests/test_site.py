@@ -396,13 +396,16 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(new_base.adapters._provided, is_(OIBTree))
         assert_that(new_base.adapters._adapters[0], is_({}))
 
-        assert_that(new_base.adapters._adapters[1][IFoo], is_(dict))
-
+        assert_that(new_base.adapters._adapters[1], has_length(2))
+        assert_that(new_base.adapters._adapters[1], is_(OOBTree))
+        assert_that(new_base.adapters._adapters[1][IFoo], has_length(1))
+        assert_that(new_base.adapters._adapters[1][IFoo], is_(OOBTree))
 
         new_base.registerAdapter(_foo_factory2,
                                  required=(IFoo,),
                                  provided=IFoo)
 
+        assert_that(new_base.adapters._adapters[1][IFoo], has_length(2))
         assert_that(new_base.adapters._adapters[1][IFoo], is_(OOBTree))
 
         transaction.commit()
@@ -687,7 +690,7 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         # But _subscribers is special cased: It always becomes a BTree
         collection = comps.utilities._subscribers
-        assert_that(collection[0], is_(OOBTree))
+        assert_that(collection[0], is_(OOBTree)) # subscribers
         assert_that(collection[0], has_length(1))
 
         # lookups and manipulating the registry still works fine.
@@ -698,8 +701,15 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(comps.queryUtility(IFoo), is_(none()))
 
         logs = str(log)
-        self.assertIn('Converting ordered mapping', logs)
         self.assertIn('Converting bucket', logs)
+
+        # Running the process again does nothing
+        log.clear()
+        comps.utilities.changed(comps.utilities)
+        comps.adapters.changed(comps.adapters)
+
+        logs = str(log)
+        self.assertEqual(logs, '')
 
     def test_convert_many_utilities_many_interfaces(self):
         # Testing the default thresholds. We're registering a bunch of
@@ -738,12 +748,12 @@ class TestBTreeSiteMan(AbstractTestBase):
             assert_that(collection, has_length(1))
             # ...and that one item is a dict containing dicts as values,
             # just as with _adapters, except that the dict is actually always
-            # a BTree
+            # a BTree, and because the parent is a BTree, so are the children
             assert_that(collection[0], is_(OOBTree))
             assert_that(collection[0], has_length(i + 1))
 
             assert_that(collection[0][iface], has_length(1))
-            assert_that(collection[0][iface], is_(dict))
+            assert_that(collection[0][iface], is_(OOBTree))
 
         # Add another to hit the threshold
         comps.registerUtility(AUtility(), provided=IFoo)
@@ -757,8 +767,8 @@ class TestBTreeSiteMan(AbstractTestBase):
             assert_that(collection, has_length(1))
             assert_that(collection[0], is_(OOBTree))
             assert_that(collection[0], has_length(comps.utilities.btree_map_threshold + 1))
-            # The small inner items are still dictionaries
-            assert_that(collection[0][IFoo], is_(dict))
+            # The small inner items are also BTrees because the parent is
+            assert_that(collection[0][IFoo], is_(OOBTree))
 
         # lookups and manipulating the registry still works fine.
         assert_that(comps.getUtility(IFoo), is_(AUtility))
@@ -864,8 +874,15 @@ class TestBTreeLocalAdapterRegistry(unittest.TestCase):
 
     def _check_one_utility(self, reg,
                            outer_length=1, outer_type=dict,
-                           inner_length=30, inner_type=dict):
-        collection = reg._adapters
+                           inner_length=30, inner_type=dict,
+                           collection='_adapters'):
+        if collection == '_subscribers':
+            # This always converts
+            outer_type = inner_type = OOBTree
+            # This is only ever length 1
+            inner_length = 1
+        collection = getattr(reg, collection)
+
         # It's a list of one item...
         assert_that(collection, is_(list))
         assert_that(collection, has_length(1))
@@ -880,25 +897,34 @@ class TestBTreeLocalAdapterRegistry(unittest.TestCase):
         assert_that(collection[0][iface], is_(inner_type))
 
     def _register_one(self, reg, required=(), provided=IFoo,
-                      name=u'', comp=None):
+                      name=u'', comp=None, method='register'):
         if comp is None:
             comp = GlobalUtilityImplementingFoo()
-        reg.register(required, provided, str(name), comp)
+        if method == 'register':
+            reg.register(required, provided, str(name), comp)
+        else:
+            assert method == 'subscribe'
+            reg.subscribe(required, provided, comp)
 
-    def test_zodb_storage_with_conversion_one_interface(self):
+    def test_zodb_storage_with_conversion_one_interface(self, subscribe=False):
         # Once we do a BTree conversion, future registrations also
         # persist as expected. This is a test for the high level
         # registerUtility method, which always uses `required=()`.
         # The top-level is small, but the bottom levels are big.
         # Note that there's only one level of nesting because `required=()`.
+        method = 'register'
+        collection = '_adapters'
+        if subscribe:
+            method = 'subscribe'
+            collection = '_subscribers'
         reg = BTreeLocalAdapterRegistry()
 
         assert reg.btree_map_threshold > 0
 
         for i in range(reg.btree_map_threshold):
-            self._register_one(reg, name=i)
+            self._register_one(reg, name=i, method=method)
 
-        self._check_one_utility(reg)
+        self._check_one_utility(reg, collection=collection)
 
         # Store it
         with self.new_zodb_conn() as conn:
@@ -907,14 +933,17 @@ class TestBTreeLocalAdapterRegistry(unittest.TestCase):
         # Add another and convert, storing it
         with self.new_zodb_conn() as conn:
             reg = conn.root()['registry']
-            self._register_one(reg)
-            self._check_one_utility(reg, inner_length=31, inner_type=OOBTree)
+            self._register_one(reg, method=method)
+            self._check_one_utility(reg, inner_length=31, inner_type=OOBTree, collection=collection)
             assert_that(reg, has_property('_p_changed', is_true()))
 
         # re-open, verify it is found
         with self.new_zodb_conn() as conn:
             reg = conn.root()['registry']
-            self._check_one_utility(reg, inner_length=31, inner_type=OOBTree)
+            self._check_one_utility(reg, inner_length=31, inner_type=OOBTree, collection=collection)
+
+    def test_zodb_storage_with_conversion_one_interface_subscribe(self):
+        self.test_zodb_storage_with_conversion_one_interface(subscribe=True)
 
     def test_zodb_storage_with_conversion_many_interfaces(self):
         # As for ``test_zodb_storage_with_conversion_one_interface``, but
@@ -932,7 +961,8 @@ class TestBTreeLocalAdapterRegistry(unittest.TestCase):
         self._check_one_utility(reg,
                                 outer_length=len(MANY_IFACES) + 1,
                                 outer_type=OOBTree,
-                                inner_length=1)
+                                inner_length=1,
+                                inner_type=OOBTree)
 
         with self.new_zodb_conn() as conn:
             conn.root()['registry'] = reg
@@ -944,7 +974,8 @@ class TestBTreeLocalAdapterRegistry(unittest.TestCase):
             self._check_one_utility(reg,
                                     outer_length=len(MANY_IFACES) + 1,
                                     outer_type=OOBTree,
-                                    inner_length=2)
+                                    inner_length=2,
+                                    inner_type=OOBTree)
             assert_that(reg, has_property('_p_changed', is_true()))
 
         # re-open, verify it is found
@@ -953,4 +984,5 @@ class TestBTreeLocalAdapterRegistry(unittest.TestCase):
             self._check_one_utility(reg,
                                     outer_length=len(MANY_IFACES) + 1,
                                     outer_type=OOBTree,
+                                    inner_type=OOBTree,
                                     inner_length=2)

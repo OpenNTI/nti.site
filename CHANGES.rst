@@ -5,7 +5,9 @@
 2.4.3 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Fix ``BTreePersistentComponents`` leaving some nested dicts alone
+  when they should be converted to BTrees. This could cause data loss.
+  See :issue:`41`.
 
 
 2.4.2 (2021-03-01)
