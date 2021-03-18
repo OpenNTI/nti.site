@@ -2,10 +2,17 @@
  Changes
 =========
 
-2.4.3 (unreleased)
+3.0.0 (unreleased)
 ==================
 
-- Nothing changed yet.
+- Update to zope.interface 5.3. This lets the ``BTreeAdapterRegistry``
+  and ``BTreeLocalSiteManager`` work much more smoothly and scale
+  better.
+
+  .. important::
+
+     The automatic conversion from dicts to BTrees has been removed.
+     You must explicitly migrate by calling ``BTreeLocalSiteManager.rebuild()``
 
 
 2.4.2 (2021-03-01)

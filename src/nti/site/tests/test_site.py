@@ -56,7 +56,6 @@ from nti.site.tests import SharedConfiguringTestLayer
 
 from nti.testing.matchers import validly_provides
 from nti.testing.matchers import is_false
-from nti.testing.matchers import is_true
 from nti.testing.base import AbstractTestBase
 
 from persistent import Persistent
@@ -246,11 +245,7 @@ from ZODB import DB
 from ZODB.DemoStorage import DemoStorage
 import transaction
 
-import pickle
-try:
-    import zodbpickle.fastpickle as zpickle
-except ImportError:
-    import zodbpickle.pickle as zpickle # pypy
+
 from BTrees import family64
 OOBTree = family64.OO.BTree
 OIBTree = family64.OI.BTree
@@ -261,35 +256,58 @@ class GlobalUtilityImplementingFoo(object):
 
 class TestBTreeSiteMan(AbstractTestBase):
 
-    def test_pickle_setstate_swap_class(self):
+    def test_rebuild_swap_class(self):
         base_comps = BLSM(None)
         # replace with "broken"
         base_comps.adapters = _LocalAdapterRegistry()
         base_comps.utilities = _LocalAdapterRegistry()
 
         sub_comps = BLSM(None)
+        sub_comps.adapters = _LocalAdapterRegistry()
+        sub_comps.utilities = _LocalAdapterRegistry()
+
         sub_comps.__bases__ = (base_comps,)
 
         assert_that(sub_comps.adapters.__bases__, is_((base_comps.adapters,)))
         assert_that(sub_comps.utilities.__bases__, is_((base_comps.utilities,)))
 
-        for p in pickle, zpickle:
-            new_base, new_sub = p.loads(p.dumps([base_comps, sub_comps]))
+        # Either order works here.
+        base_comps.rebuild()
+        sub_comps.rebuild()
 
-            # Still in place
-            assert_that(new_sub.adapters.__bases__, is_((new_base.adapters,)))
-            assert_that(new_sub.utilities.__bases__, is_((new_base.utilities,)))
+        # Still in place
+        assert_that(sub_comps.adapters.__bases__, is_((base_comps.adapters,)))
+        assert_that(sub_comps.utilities.__bases__, is_((base_comps.utilities,)))
 
-            # And they changed type
-            assert_that(new_sub.adapters.__bases__[0], is_(BTreeLocalAdapterRegistry))
-            assert_that(new_sub.utilities.__bases__[0], is_(BTreeLocalAdapterRegistry))
+        # And they changed type
+        assert_that(sub_comps.adapters.__bases__[0], is_(BTreeLocalAdapterRegistry))
+        assert_that(sub_comps.utilities.__bases__[0], is_(BTreeLocalAdapterRegistry))
+        assert_that(sub_comps.adapters, is_(BTreeLocalAdapterRegistry))
+        assert_that(sub_comps.utilities, is_(BTreeLocalAdapterRegistry))
 
 
     def _store_base_subs_in_zodb(self, storage):
-        db = DB(storage)
-        conn = db.open()
+        from zope.testing.loggingsupport import InstalledHandler
+        from contextlib import contextmanager
+
+        log = InstalledHandler('nti.site.site')
+        self.addCleanup(log.uninstall)
+
+        @contextmanager
+        def fresh_connection():
+            db = DB(storage)
+            conn = db.open()
+            try:
+                yield conn
+                transaction.commit()
+            finally:
+                transaction.abort()
+                conn.close()
+                # Always close the DB to clear connection object caches.
+                db.close()
 
         base_comps = BLSM(None)
+        assert isinstance(base_comps, Persistent)
         base_comps.btree_threshold = 0
         base_comps.__name__ = u'base'
         # replace with "broken"
@@ -298,19 +316,53 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         sub_comps = BLSM(None)
         sub_comps.__name__ = u'sub'
+        base_comps.adapters = _LocalAdapterRegistry()
+        base_comps.utilities = _LocalAdapterRegistry()
         sub_comps.__bases__ = (base_comps,)
 
-        assert_that(sub_comps.adapters.__bases__, is_((base_comps.adapters,)))
-        assert_that(sub_comps.utilities.__bases__, is_((base_comps.utilities,)))
-        assert_that(sub_comps.utilities.__bases__[0], is_(_LocalAdapterRegistry))
+        def check_subs(sub_comps, base_comps, expected_base_kind=BTreeLocalAdapterRegistry):
+            assert_that(sub_comps.adapters.__bases__, is_((base_comps.adapters,)))
+            assert_that(sub_comps.utilities.__bases__, is_((base_comps.utilities,)))
+            assert_that(sub_comps.utilities.__bases__[0], is_(expected_base_kind))
 
-        conn.root()['base'] = base_comps
-        conn.root()['sub'] = sub_comps
+        check_subs(sub_comps, base_comps, _LocalAdapterRegistry)
 
+        with fresh_connection() as conn:
+            conn.root()['base'] = base_comps
+            conn.root()['sub'] = sub_comps
 
-        transaction.commit()
-        conn.close()
-        db.close()
+        # Mimic what the old BLSM.__setstate__ did and
+        # convert the data structures.
+        with fresh_connection() as conn:
+            root = conn.root()
+            sub_comps = root['sub']
+            base_comps = root['base']
+
+            base_comps._p_activate()
+            logs = str(log)
+            log.uninstall()
+            self.assertIn('ERROR', logs)
+            self.assertIn('The LocalSiteManager', logs)
+            self.assertIn('has a sub-object', logs)
+
+            # Either order works here
+            base_comps.rebuild()
+            sub_comps.rebuild()
+            check_subs(sub_comps, base_comps)
+
+            assert_that(base_comps.adapters, is_(BTreeLocalAdapterRegistry))
+            assert_that(base_comps.utilities, is_(BTreeLocalAdapterRegistry))
+
+        with fresh_connection() as conn:
+            root = conn.root()
+            sub_comps = root['sub']
+            base_comps = root['base']
+            check_subs(sub_comps, base_comps)
+
+            assert_that(base_comps.adapters, is_(BTreeLocalAdapterRegistry))
+            assert_that(base_comps.utilities, is_(BTreeLocalAdapterRegistry))
+            assert_that(sub_comps.adapters, is_(BTreeLocalAdapterRegistry))
+            assert_that(sub_comps.utilities, is_(BTreeLocalAdapterRegistry))
 
     def test_pickle_setstate_swap_class_zodb(self):
         storage = DemoStorage()
@@ -369,11 +421,6 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base._p_activate()
         new_sub = conn.root()['sub']
 
-
-        new_base.adapters.btree_provided_threshold = 0
-        new_base.adapters.btree_map_threshold = 1
-        assert_that(new_base.adapters._v_safe_to_convert, is_true())
-
         # Note: this used-to cause btree-ing the map to fail. The
         # implementedBy callable previously had default comparison and can't be
         # stored in a btree. As of zope.interface 4.3.0, this is fixed.
@@ -392,9 +439,9 @@ class TestBTreeSiteMan(AbstractTestBase):
                         ((implementedBy(object),), IFoo, u''),
                     ))
         assert_that(new_base.adapters._provided, is_(OIBTree))
-        assert_that(new_base.adapters._adapters[0], is_({}))
+        assert_that(new_base.adapters._adapters[0], is_(OOBTree))
 
-        assert_that(new_base.adapters._adapters[1][IFoo], is_(dict))
+        assert_that(new_base.adapters._adapters[1][IFoo], is_(OOBTree))
 
 
         new_base.registerAdapter(_foo_factory2,
@@ -423,9 +470,6 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base = conn.root()['base']
         new_base._p_activate()
         new_sub = conn.root()['sub']
-
-        new_base.utilities.btree_provided_threshold = 0
-        new_base.utilities.btree_map_threshold = 0
 
         new_base.registerUtility(MockSite(),
                                  provided=IFoo)
@@ -479,11 +523,6 @@ class TestBTreeSiteMan(AbstractTestBase):
         new_base._p_activate()
         new_sub = conn.root()['sub']
 
-
-        new_base.utilities.btree_provided_threshold = 0
-        new_base.utilities.btree_map_threshold = 0
-        assert_that(new_base.utilities._v_safe_to_convert, is_true())
-
         new_base.registerUtility(MockSite(),
                                  provided=IFoo)
         provided1 = new_base.adapters._provided
@@ -531,9 +570,6 @@ class TestBTreeSiteMan(AbstractTestBase):
     def test_convert_with_utility_registered_on_class(self):
         comps = BLSM(None)
 
-        comps.utilities.btree_provided_threshold = 0
-        comps.utilities.btree_map_threshold = 0
-
         comps.registerUtility(component=MockSite(),
                               provided=implementedBy(object))
 
@@ -550,9 +586,6 @@ class TestBTreeSiteMan(AbstractTestBase):
     def test_convert_with_utility_no_provided(self):
         comps = BLSM(None)
 
-        comps.utilities.btree_provided_threshold = 0
-        comps.utilities.btree_map_threshold = 0
-
         class AUtility(object):
             # Doesn't implement any interfaces
             pass
@@ -563,11 +596,7 @@ class TestBTreeSiteMan(AbstractTestBase):
 
     def test_convert_with_utility_dynamic_provided(self):
         comps = BLSM(None)
-
         comps.btree_threshold = 0
-        comps.utilities.btree_provided_threshold = 0
-        comps.utilities.btree_map_threshold = 0
-
         class AUtility(object):
             # Doesn't implement any interfaces
             pass
@@ -588,10 +617,6 @@ class TestBTreeSiteMan(AbstractTestBase):
     def test_convert_with_adapter_registered_on_class(self):
         comps = BLSM(None)
 
-        comps.btree_threshold = 0
-        comps.adapters.btree_provided_threshold = 0
-        comps.utilities.btree_map_threshold = 0
-
         comps.registerAdapter(
             _foo_factory,
             required=(object, type('str')),
@@ -602,11 +627,6 @@ class TestBTreeSiteMan(AbstractTestBase):
 
     def test_convert_mark_self_changed(self):
         comps = BLSM(None)
-
-        comps.btree_threshold = 0
-        comps.adapters.btree_map_threshold = 1
-        comps.adapters.btree_provided_threshold = 0
-        comps.utilities.btree_map_threshold = 0
 
         comps.registerAdapter(
             _foo_factory,
@@ -620,190 +640,6 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         x = comps.getMultiAdapter((object(), 'str'), IFoo)
         assert_that(x, is_(1))
-
-    def _make_comps_filled_with_utility(self, utility_factory, iter_checker=lambda _comps, _i: None):
-        comps = BLSM(None)
-        assert comps.btree_threshold > 0
-        assert comps.utilities.btree_map_threshold > 0
-        assert comps.utilities.btree_provided_threshold > 0
-        assert comps.utilities.btree_provided_threshold == comps.utilities.btree_map_threshold
-        assert comps.btree_threshold == comps.utilities.btree_provided_threshold
-
-        for i in range(comps.utilities.btree_map_threshold):
-            comps.registerUtility(utility_factory(), name=u'%s' % i)
-            iter_checker(comps, i)
-        return comps
-
-    def test_convert_many_named_utilities_one_interface(self):
-        # Testing the default thresholds. We're registering a bunch of
-        # utilities for a single interface.
-        from zope.testing.loggingsupport import InstalledHandler
-        from persistent.mapping import PersistentMapping
-
-        log = InstalledHandler('nti.site.site')
-        self.addCleanup(log.uninstall)
-
-        @interface.implementer(IFoo)
-        class AUtility(object):
-            "Utility"
-
-        def iter_checker(comps, i):
-            # The top-level registrations are a dictionary:
-            # {(iface, name): (utility, '', None)}
-            assert_that(comps._utility_registrations, is_(PersistentMapping))
-            collection = comps.utilities._adapters
-            # It's a list of one item...
-            assert_that(collection, is_(list))
-            assert_that(collection, has_length(1))
-            # ...and that one item is a dict containing dicts as
-            # values:
-            # [{IFoo: {name: utility}}]
-            assert_that(collection[0], is_(dict))
-            assert_that(collection[0], has_length(1))
-
-            assert_that(collection[0][IFoo], has_length(i + 1))
-            assert_that(collection[0][IFoo], is_(dict))
-
-        comps = self._make_comps_filled_with_utility(AUtility, iter_checker)
-
-        # Add another to hit the threshold
-        comps.registerUtility(AUtility())
-        # The top-level registrations have changed.
-        assert_that(comps._utility_registrations, is_(OOBTree))
-        # Both _adapters and _subscribers are still lists of
-        # one item
-        for collection in comps.utilities._adapters, comps.utilities._subscribers:
-            assert_that(collection, is_(list))
-            assert_that(collection, has_length(1))
-
-        # For the _adapters, we remain a dict of one item...
-        collection = comps.utilities._adapters
-        assert_that(collection[0], is_(dict))
-        assert_that(collection[0], has_length(1))
-        # ...where the inner item has changed to a BTree.
-        assert_that(collection[0][IFoo], is_(OOBTree))
-
-        # But _subscribers is special cased: It always becomes a BTree
-        collection = comps.utilities._subscribers
-        assert_that(collection[0], is_(OOBTree))
-        assert_that(collection[0], has_length(1))
-
-        # lookups and manipulating the registry still works fine.
-        assert_that(comps.getUtility(IFoo), is_(AUtility))
-        comps.registerUtility(AUtility(), name="FizzBinn")
-        assert_that(comps.getUtility(IFoo, 'FizzBinn'), is_(AUtility))
-        comps.unregisterUtility(comps.getUtility(IFoo))
-        assert_that(comps.queryUtility(IFoo), is_(none()))
-
-        logs = str(log)
-        self.assertIn('Converting ordered mapping', logs)
-        self.assertIn('Converting bucket', logs)
-
-    def test_convert_many_utilities_many_interfaces(self):
-        # Testing the default thresholds. We're registering a bunch of
-        # utilities for a bunch of different interfaces.
-        from persistent.mapping import PersistentMapping
-        comps = BLSM(None)
-        assert comps.btree_threshold > 0
-        assert comps.utilities.btree_map_threshold > 0
-        assert comps.utilities.btree_provided_threshold > 0
-        assert comps.utilities.btree_provided_threshold == comps.utilities.btree_map_threshold
-        assert comps.btree_threshold == comps.utilities.btree_provided_threshold
-
-        class AUtility(object):
-            "Utility"
-
-        for i in range(comps.utilities.btree_map_threshold):
-            iface = type(IFoo)('Iface' + str(i), (IFoo,), {})
-            comps.registerUtility(AUtility(), provided=iface, name=u'%s' % i)
-            assert_that(comps._utility_registrations, is_(PersistentMapping))
-            collection = comps.utilities._adapters
-            # It's a list of one item...
-            assert_that(collection, is_(list))
-            assert_that(collection, has_length(1))
-            # ...and that one item is a dict containing dicts as
-            # values:
-            # [{iface: {name: utility}, ...}]
-            assert_that(collection[0], is_(dict))
-            assert_that(collection[0], has_length(i + 1))
-
-            assert_that(collection[0][iface], has_length(1))
-            assert_that(collection[0][iface], is_(dict))
-
-            collection = comps.utilities._subscribers
-            # It's a list of one item...
-            assert_that(collection, is_(list))
-            assert_that(collection, has_length(1))
-            # ...and that one item is a dict containing dicts as values,
-            # just as with _adapters, except that the dict is actually always
-            # a BTree
-            assert_that(collection[0], is_(OOBTree))
-            assert_that(collection[0], has_length(i + 1))
-
-            assert_that(collection[0][iface], has_length(1))
-            assert_that(collection[0][iface], is_(dict))
-
-        # Add another to hit the threshold
-        comps.registerUtility(AUtility(), provided=IFoo)
-        # The top-level registrations have changed
-        assert_that(comps._utility_registrations, is_(OOBTree))
-        # Both _adapters and _subscribers are still lists of
-        # one item, where that one item is now OOBTree
-        collection = comps.utilities._adapters
-        for collection in comps.utilities._adapters, comps.utilities._subscribers:
-            assert_that(collection, is_(list))
-            assert_that(collection, has_length(1))
-            assert_that(collection[0], is_(OOBTree))
-            assert_that(collection[0], has_length(comps.utilities.btree_map_threshold + 1))
-            # The small inner items are still dictionaries
-            assert_that(collection[0][IFoo], is_(dict))
-
-        # lookups and manipulating the registry still works fine.
-        assert_that(comps.getUtility(IFoo), is_(AUtility))
-        comps.registerUtility(AUtility(), provided=IFoo, name="FizzBinn")
-        assert_that(comps.getUtility(IFoo, 'FizzBinn'), is_(AUtility))
-        comps.unregisterUtility(comps.getUtility(IFoo), provided=IFoo)
-        assert_that(comps.queryUtility(IFoo), is_(none()))
-
-    def test_no_conversion_during__p_activate(self):
-        from persistent.mapping import PersistentMapping
-
-        comps = self._make_comps_filled_with_utility(GlobalUtilityImplementingFoo)
-        comps.btree_threshold = 0
-        comps.utilities.btree_map_threshold = 0
-        comps.utilities.btree_provided_threshold = 0
-
-        db = DB(DemoStorage())
-        transaction.begin()
-        conn = db.open()
-        conn.root()['key'] = comps
-        del comps
-        transaction.commit()
-
-        transaction.begin()
-        conn2 = db.open()
-        comps = conn2.root()['key']
-
-        # Nothing has changed to BTrees, even though the threshold is now 0
-        assert_that(comps._utility_registrations, is_(PersistentMapping))
-        collection = comps.utilities._adapters
-        # It's a list of one item...
-        assert_that(collection, is_(list))
-        assert_that(collection, has_length(1))
-        # ...and that one item is a dict containing dicts as
-        # values:
-        # [{iface: {name: utility}, ...}]
-        iface = IFoo
-        assert_that(collection[0], is_(dict))
-        assert_that(collection[0], has_length(1))
-
-        assert_that(collection[0][iface], has_length(30))
-        assert_that(collection[0][iface], is_(dict))
-
-        # Even though nothing changed, it is safe to do so at the next registration
-        assert_that(comps.utilities._v_safe_to_convert, is_true())
-        assert_that(comps.adapters._v_safe_to_convert, is_true())
-
 
 
 def _foo_factory(*_args):
@@ -821,3 +657,59 @@ class TestPermissiveOOBTree(unittest.TestCase):
         key = object() # default comparison
 
         assert_that(tree.get(key), is_(none()))
+
+
+from zope.interface.tests.test_adapter import CustomTypesBaseAdapterRegistryTests
+
+class BTreeLocalAdapterRegistryCustomTypesTest(CustomTypesBaseAdapterRegistryTests):
+
+    def _getMappingType(self):
+        return OOBTree
+
+    def _getProvidedType(self):
+        return OIBTree
+
+    def _getMutableListType(self):
+        from persistent.list import PersistentList
+        return PersistentList
+
+    def _getLeafSequenceType(self):
+        return self._getMutableListType()
+
+    def _getBaseAdapterRegistry(self):
+        return BTreeLocalAdapterRegistry
+
+    def __bt_to_dict(self, bt):
+        if not isinstance(bt, (OOBTree, OIBTree)):
+            return bt
+
+        return {
+            k: self.__bt_to_dict(v)
+            for k, v in bt.items()
+        }
+
+    def assertEqual(self, first, second, msg=None):
+        # BTrees don't support equality tests like
+        # dict and PersistentMapping do, so convert them to dicts.
+        # They are also found at the top level of the
+        # persistent maps, so those need converted too.
+        from persistent.list import PersistentList
+        if isinstance(first, (OOBTree, OIBTree)) and isinstance(second, (OOBTree, OIBTree)):
+            self.assertEqual(type(first), type(second))
+            first = self.__bt_to_dict(first)
+            second = self.__bt_to_dict(second)
+        elif isinstance(first, PersistentList) and isinstance(second, PersistentList):
+            self.assertEqual(type(first), type(second))
+            first = [self.__bt_to_dict(x) for x in first]
+            second = [self.__bt_to_dict(x) for x in second]
+
+
+        super(BTreeLocalAdapterRegistryCustomTypesTest, self).assertEqual(first, second, msg=msg)
+
+    def test__addValueToLeaf_existing_is_tuple_converts(self):
+        # XXX: Coverage only. This can go away when zope.component 5 is released.
+        from persistent.list import PersistentList
+        registry = self._makeOne()
+        result = registry._addValueToLeaf(('a',), 'b')
+        self.assertIsInstance(result, PersistentList)
+        self.assertEqual(result, ['a', 'b'])

@@ -373,16 +373,9 @@ class SharedConfiguringTestLayer(zodb.ZODBLayer,
         cls.setUpPackages()
         # Force all the thresholds low so that we do as much testing as possible
         # with btrees.
-        from .site import BTreeLocalAdapterRegistry
         from .folder import HostPolicySiteManager
         assert hasattr(HostPolicySiteManager, 'btree_threshold')
         HostPolicySiteManager.btree_threshold = 0
-        assert hasattr(BTreeLocalAdapterRegistry, 'btree_provided_threshold')
-        assert hasattr(BTreeLocalAdapterRegistry, 'btree_map_threshold')
-        cls._orig_provided = BTreeLocalAdapterRegistry.btree_provided_threshold
-        cls._orig_map = BTreeLocalAdapterRegistry.btree_map_threshold
-        BTreeLocalAdapterRegistry.btree_provided_threshold = 0
-        BTreeLocalAdapterRegistry.btree_map_threshold = 0
 
     @classmethod
     def tearDown(cls):
@@ -390,8 +383,6 @@ class SharedConfiguringTestLayer(zodb.ZODBLayer,
         from .folder import HostPolicySiteManager
         del HostPolicySiteManager.btree_threshold
         assert hasattr(HostPolicySiteManager, 'btree_threshold')
-        BTreeLocalAdapterRegistry.btree_provided_threshold = cls._orig_provided
-        BTreeLocalAdapterRegistry.btree_map_threshold = cls._orig_map
         cls.tearDownPackages()
         zope.testing.cleanup.cleanUp()
 

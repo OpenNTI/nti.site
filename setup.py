@@ -60,9 +60,9 @@ setup(
         'setuptools',
         'six',
         'transaction >= 2.4.0',  # for looser text/byte handling
-        'zope.component',
+        'zope.component', # XXX: Bump to zope.component 5 when released
         'zope.container',
-        'zope.interface >= 4.4.2',
+        'zope.interface >= 5.3.0a1', # Customizable AdapterRegistry data
         'zope.location',
         'zope.proxy',
         'zope.site >= 4.4.0', # Proper site cleanup.
