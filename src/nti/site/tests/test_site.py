@@ -705,11 +705,3 @@ class BTreeLocalAdapterRegistryCustomTypesTest(CustomTypesBaseAdapterRegistryTes
 
 
         super(BTreeLocalAdapterRegistryCustomTypesTest, self).assertEqual(first, second, msg=msg)
-
-    def test__addValueToLeaf_existing_is_tuple_converts(self):
-        # XXX: Coverage only. This can go away when zope.component 5 is released.
-        from persistent.list import PersistentList
-        registry = self._makeOne()
-        result = registry._addValueToLeaf(('a',), 'b')
-        self.assertIsInstance(result, PersistentList)
-        self.assertEqual(result, ['a', 'b'])

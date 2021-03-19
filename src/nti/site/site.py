@@ -17,7 +17,6 @@ from zope import component
 from zope import interface
 
 from zope.component.hooks import getSite
-from zope.component.persistentregistry import PersistentAdapterRegistry
 
 from zope.site.site import LocalSiteManager
 from zope.site.site import _LocalAdapterRegistry
@@ -25,7 +24,6 @@ from zope.site.site import _LocalAdapterRegistry
 from zope.interface.interfaces import IComponents
 
 from persistent import Persistent
-from persistent.list import PersistentList
 
 from nti.schema.fieldproperty import createDirectFieldProperties
 
@@ -238,36 +236,10 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     #: The family for the provided map. Defaults to 64-bit maps. I.e., long.
     btree_family = family64
 
+    # Override types from PersistentAdapterRegistry
     _providedType = btree_family.OI.BTree
     _mappingType = btree_family.OO.BTree
 
-    if '_sequenceType' not in PersistentAdapterRegistry.__dict__:
-        # we're working with an old zope.component, pre
-        # https://github.com/zopefoundation/zope.component/pull/53/files,
-        # so we need to set everything.
-        _sequenceType = PersistentList
-        _leafSequenceType = PersistentList
-
-        # The methods needed to manipulate the leaves of the subscriber
-        # tree. When we're manipulating unmigrated data, it's safe to
-        # migrate it, but not otherwise (we don't want to write in an
-        # otherwise read-only transaction).
-        def _addValueToLeaf(self, existing_leaf_sequence, new_item):
-            if not existing_leaf_sequence:
-                existing_leaf_sequence = self._leafSequenceType()
-            elif isinstance(existing_leaf_sequence, tuple):
-                # Converting from old state.
-                existing_leaf_sequence = self._leafSequenceType(existing_leaf_sequence)
-            existing_leaf_sequence.append(new_item)
-            return existing_leaf_sequence
-
-        def _removeValueFromLeaf(self, existing_leaf_sequence, to_remove):
-            without_removed = _LocalAdapterRegistry._removeValueFromLeaf(
-                self,
-                existing_leaf_sequence,
-                to_remove)
-            existing_leaf_sequence[:] = without_removed
-            return existing_leaf_sequence
 
 
 class BTreePersistentComponents(PersistentComponents):

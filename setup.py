@@ -60,7 +60,7 @@ setup(
         'setuptools',
         'six',
         'transaction >= 2.4.0',  # for looser text/byte handling
-        'zope.component', # XXX: Bump to zope.component 5 when released
+        'zope.component >= 5.0.0',
         'zope.container',
         'zope.interface >= 5.3.0a1', # Customizable AdapterRegistry data
         'zope.location',
