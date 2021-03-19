@@ -663,6 +663,12 @@ from zope.interface.tests.test_adapter import CustomTypesBaseAdapterRegistryTest
 
 class BTreeLocalAdapterRegistryCustomTypesTest(CustomTypesBaseAdapterRegistryTests):
 
+    # Py3: assertRaisesRegexp is deprecated. Make the replacement available
+    # everywhere.
+    assertRaisesRegex = getattr(unittest.TestCase,
+                                'assertRaisesRegex',
+                                unittest.TestCase.assertRaisesRegexp)
+
     def _getMappingType(self):
         return OOBTree
 
@@ -705,3 +711,8 @@ class BTreeLocalAdapterRegistryCustomTypesTest(CustomTypesBaseAdapterRegistryTes
 
 
         super(BTreeLocalAdapterRegistryCustomTypesTest, self).assertEqual(first, second, msg=msg)
+
+    def test__addValueToLeaf_existing_is_tuple_TypeError(self):
+        registry = self._makeOne()
+        with self.assertRaisesRegex(TypeError, "Forbidding mutation"):
+            registry._addValueToLeaf(('a',), 'b')

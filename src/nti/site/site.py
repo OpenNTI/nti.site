@@ -240,6 +240,21 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     _providedType = btree_family.OI.BTree
     _mappingType = btree_family.OO.BTree
 
+    def _addValueToLeaf(self, existing_leaf_sequence, new_item):
+        if isinstance(existing_leaf_sequence, tuple):
+            # We're mutating unmigrated data. This could lead to data loss
+            # if we have a situation from previous versions of this class like
+            # BTree -> dict -> tuple; that's about to become
+            # BTree -> dict -> PersistentList.
+            # Mutations of either the dict or PersistentList won't notify the
+            # BTree that it needs to persist itself.
+            # In the past, the solution to this was to set the BTree conversion threshold
+            # to 0 so that the intermediate dict got converted to a BTree, but that's
+            # not possible anymore. So just don't allow it.
+            raise TypeError("Forbidding mutation of unmigrated data in %r. Call rebuild()."
+                            % self)
+        return super(BTreeLocalAdapterRegistry, self)._addValueToLeaf(existing_leaf_sequence,
+                                                                      new_item)
 
 
 class BTreePersistentComponents(PersistentComponents):
