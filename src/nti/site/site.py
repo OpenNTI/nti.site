@@ -216,6 +216,15 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
        because of aggressive caching on class objects.) Registering a utility
        to provide a bare class is quite hard to do, in any case. Registering
        adapters to require bare classes is easier but generally not a best practice.
+
+    .. versionchanged:: 3.0.0
+       No longer converts any data structures as part of mutating this object.
+       Instead, uses the support from zope.interface 5.3 and zope.component 5.0
+       to specify the data types to use as they are created on demand.
+
+       Existing persistent registries *must* have the ``rebuild()`` method called
+       on them as part of a migration. The best way to do that would be through
+       the ``rebuild()`` method on their containing :class:`BTreeLocalSiteManager`.
     """
     # Inherit from _LocalAdapterRegistry for maximum compatibility...we are
     # going to swizzle out classes. Also, it makes sure we are ILocation.
@@ -227,147 +236,26 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
     #: The family for the provided map. Defaults to 64-bit maps. I.e., long.
     btree_family = family64
 
-    #: The type of BTree to be used for adapter registrations. This generally shouldn't
-    #: be changed. In an emergency, it can be set to :class:`dict` to avoid doing any
-    #: migrations.
-    btree_oo_type = family64.OO.BTree
+    # Override types from PersistentAdapterRegistry
+    _providedType = btree_family.OI.BTree
+    _mappingType = btree_family.OO.BTree
 
-    #: The size at which the total number of registered adapters will
-    #: be switched to a BTree. This defaults to the BTree's maximum bucket
-    #: size before it splits. Thus, when we do this, we will wind up with two
-    #: new persistent objects.
-    btree_provided_threshold = 30
+    def _addValueToLeaf(self, existing_leaf_sequence, new_item):
+        if isinstance(existing_leaf_sequence, tuple):
+            # We're mutating unmigrated data. This could lead to data loss
+            # if we have a situation from previous versions of this class like
+            # BTree -> dict -> tuple; that's about to become
+            # BTree -> dict -> PersistentList.
+            # Mutations of either the dict or PersistentList won't notify the
+            # BTree that it needs to persist itself.
+            # In the past, the solution to this was to set the BTree conversion threshold
+            # to 0 so that the intermediate dict got converted to a BTree, but that's
+            # not possible anymore. So just don't allow it.
+            raise TypeError("Forbidding mutation of unmigrated data in %r. Call rebuild()."
+                            % self)
+        return super(BTreeLocalAdapterRegistry, self)._addValueToLeaf(existing_leaf_sequence,
+                                                                      new_item)
 
-    #: The size at which individual keys in the lookup decision maps
-    #: will be switched to BTrees. This defaults to the BTree's default
-    #: bucket size.
-    btree_map_threshold = 30
-
-    # We want to be careful: Our ``changed()`` method is invoked as
-    # part of ``__setstate__``
-    # (``PersistentAdapterRegistry.__setstate__`` sets ``__bases__``,
-    # which invokes ``changed()``), but we never want to do conversion
-    # at that time, we only want to do conversion as part of a normal
-    # ``(un)register()`` or ``(un)subscribe`` call. We use a volatile
-    # attribute to determine when this is safe to do. But because
-    # ``Persistent.__setstate__()`` clears the ``__dict__`` (and that
-    # happens before ``PersistentAdapterRegistry.__setstate__`` sets
-    # the bases), we invert the sense of the test, leaving the default
-    # as false.
-    _v_safe_to_convert = False
-
-    def __init__(self, *args, **kwargs):
-        # In case of a threshold of 0, let the top-level things be
-        # converted now.
-        self._v_safe_to_convert = True
-        super(BTreeLocalAdapterRegistry, self).__init__(*args, **kwargs)
-
-    def __setstate__(self, state):
-        super(BTreeLocalAdapterRegistry, self).__setstate__(state)
-        # We can only assert this here, not in the method we're about to call.
-        # See ``BTreeLocalSiteManager.__setstate__``.
-        assert not self._v_safe_to_convert
-        # Calling via the class avoids a nested call to _p_activate() in the
-        # pure-Python implementation.
-        BTreeLocalAdapterRegistry._btlar_after_setstate(self)
-
-    def _btlar_after_setstate(self):
-        # A hook for legacy conversions. See
-        # ``BTreeLocalSiteManager.__setstate__``
-        self._v_safe_to_convert = True
-
-    # REMEMBER: Always check the type *before* checking the length.
-    # Getting the length of a bare BTree is expensive and loads all the
-    # buckets into memory.
-    # We want to be very careful not to load BTree buckets unless we have to.
-
-    # Recall that when this is used as the `BTreePersistentComponents`
-    # `.adapters` attribute, our `_adapters` attribute will have many dictionaries
-    # in the list: one for each number of parameters needed for the adapters.
-    # When we are the `.utilities`, though, there will only be one
-    # map in the list. It will look like this:
-    #
-    #   [{iface : {name: utility, ...},
-    #     iface2: {name: utility, ...},
-    #     ...}]
-    #
-    # When we're adapters, it will look like this:
-    #
-    #   [ # one argument
-    #     {iface: {name: factory},
-    #      iface2: {name: factory}},
-    #    # two arguments -> two levels
-    #    {iface: {iface2: {name, factory}}}
-    #   ]
-    #
-    # _subscribers is similar-ish, but often has only one named level with
-    # a length of one
-    #
-    #    [{iface: {name: (utility,...)}}]
-    #
-    # With some additional work, we could also replace those tuples with a
-    # custom subclass of PersistentList. It would take a subclass because zope.interface
-    # does ``mapping.get(u'') + (value,)``, e.g, adding a tuple to it. So we'd need to
-    # implement ``__radd__`` and ``__add__``.
-    #
-    # The only time that  the `.utilities` object actually uses
-    # these ``_subscribers`` is to implement ``getAllUtilitiesRegisteredFor``; that's rarely called,
-    # right? Maybe rare enough that we could implement a different mechanism that doesn't need to
-    # persistently store the whole list at all.
-
-    def _check_and_btree_maps(self, name):
-        btree_type = self.btree_oo_type
-        byorder = getattr(self, name)
-        # Can't use enumerate here, we mutate `byorder`
-        for i in range(len(byorder)): # pylint:disable=consider-using-enumerate
-            mapping = byorder[i] # {iface : {name: utility, ...}}
-            if (not isinstance(mapping, btree_type)
-                    and (len(mapping) > self.btree_map_threshold
-                         or name == '_subscribers')):
-                # _subscribers always becomes a BTree, because its payload is stashed
-                # away in immutable tuples
-                logger.info("Converting ordered mapping (name=%s len=%d) to %s.",
-                            name, len(mapping), btree_type)
-                mapping = btree_type(mapping)
-                byorder[i] = mapping
-                # self._adapters and self._subscribers are both simply
-                # of type `list` (not persistent list) so when we make changes
-                # to them, we need to set self._p_changed
-                self._p_changed = True
-
-            # This is the first level of the decision tree, and thus
-            # the least discriminatory. If i is 0, then this is only
-            # things that are specifically providing a single interface
-            # (Which is the most common in some usages). These maps are thus
-            # liable to get to be the biggest. Note that we only replace at this
-            # level. (Recall that utilities *only* have one level.)
-            replacement_vals = {}
-            for iface, registrations in mapping.items():
-                if (not isinstance(registrations, btree_type)
-                        and len(registrations) > self.btree_map_threshold):
-                    logger.info("Converting bucket (k=%s, len=%d) to %s.",
-                                iface, len(registrations), btree_type)
-                    replacement_vals[iface] = btree_type(registrations)
-
-            if replacement_vals:
-                mapping.update(replacement_vals)
-                if not isinstance(mapping, btree_type):
-                    # This may or may not be a btree, depending on its own size,
-                    # so we may need to mark ourself as changed.
-                    self._p_changed = True
-
-    def changed(self, originally_changed):
-        # If we changed, check and migrate
-        if originally_changed is self and self._v_safe_to_convert:
-            if (not isinstance(self._provided, self.btree_family.OI.BTree)
-                    and len(self._provided) >= self.btree_provided_threshold):
-                logger.info("Converting _provided (len=%d) to %s.",
-                            len(self._provided), self.btree_family.OI.BTree)
-                self._provided = self.btree_family.OI.BTree(self._provided)
-                self._p_changed = True
-            for name in ('_adapters', '_subscribers'):
-                self._check_and_btree_maps(name)
-        super(BTreeLocalAdapterRegistry, self).changed(originally_changed)
 
 class BTreePersistentComponents(PersistentComponents):
     """
@@ -432,47 +320,43 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
 
     .. caution:: This registry doesn't support bare class registrations.
        See :class:`BTreeLocalAdapterRegistry` for details.
+
+    .. versionchanged:: 3.0.0
+       No longer attempts to change the class of the ``adapters`` and ``utilities``
+       objects when reading old pickles.
+
+       Instead, you must call this object's ``rebuild()`` method as part of a migration.
+       This method will call ``rebuild()`` on the ``adapters`` and ``utilities`` objects,
+       and also reset the ``__bases__`` of this object (to its current bases). The
+       order (leaves first or roots first) shouldn't matter, as long as all registries
+       in an inheritance hierarchy are committed in a single transaction.
+
+       If we detect old versions of the class that haven't been migrated,
+       we log an error.
     """
     # pylint:disable=too-many-ancestors
 
     def __setstate__(self, state):
         super(BTreeLocalSiteManager, self).__setstate__(state)
-        # Graceful migration from older versions of this class.
-        # See note in _init_registries for why we can't simply swap these to new
-        # ivars. Instead, we adjust their __class__. Note that we'll have to keep doing this
-        # forever or until we save a brand new copy of the object, because the class is stored
-        # as part of the pickle. Adjusting the class works because we know that the layout
-        # is exactly the same. Now, other objects could be awake and active and querying
-        # this object under its old class through their own __bases__, but that's ok:
-        # our behaviour modification only comes in at write time...which only happens
-        # through methods we expose, so we'll get a chance to swizzle the object out.
         for reg in self.adapters, self.utilities:
             if (not isinstance(reg, BTreeLocalAdapterRegistry)
                     and isinstance(reg, _LocalAdapterRegistry)):
-                # Only do this for classes we know about.
-                # Note: In Persistent 4.2.1, pure-python and C handle __class__ differently.
-                # Pure-python doesn't set _p_changed, but C does.
-                changed = reg._p_changed
-                # Assigning to ``__class__`` will activate the object, but
-                # it will do so using the ``__setstate__`` of the old
-                # class (naturally), not the special one of
-                # BTreeLocalAdapterRegistry that makes it safe to do conversions;
-                # we do that manually.
-                #
-                # Of course, I lied a bit. The Pure-Python
-                # implementation of persistent (e.g., as used on PyPy)
-                # actually uses the ``__setstate__`` of the *new*
-                # class (because assigning to ``__class__`` doesn't
-                # actually activate the object). So
-                # ``_btlar_after_setstate`` may get called twice in
-                # that implementation. Since swizzling ``__class__``
-                # is poorly defined, this may or may not be considered
-                # a bug. See
-                # https://github.com/zopefoundation/persistent/issues/155
+                logger.error(
+                    "The LocalSiteManager %r has a sub-object %r that is not yet migrated.",
+                    self, reg
+                )
+
+    def rebuild(self):
+        for reg in self.adapters, self.utilities:
+            if (not isinstance(reg, BTreeLocalAdapterRegistry)
+                    and isinstance(reg, _LocalAdapterRegistry)):
                 reg.__class__ = BTreeLocalAdapterRegistry
-                reg._btlar_after_setstate()
-                if not changed:
-                    reg._p_changed = False
+            reg.rebuild()
+        # Setting our bases will cause new references to our *base's*
+        # .adapters and .utilities to be saved in the ZODB. As long as they migrate
+        # at the same time, they will get written with their new '__class__', even
+        # if they are migrated after us.
+        self.__bases__ = self.__bases__
 
 
 @interface.implementer(ISiteMapping)
