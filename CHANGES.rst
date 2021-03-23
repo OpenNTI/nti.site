@@ -2,7 +2,7 @@
  Changes
 =========
 
-3.0.0 (unreleased)
+3.0.0 (2021-03-23)
 ==================
 
 - Update to zope.interface 5.3. and zope.component 5.0.
