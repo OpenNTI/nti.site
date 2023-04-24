@@ -25,7 +25,7 @@ setup(
     author_email='jason@nextthought.com',
     description="Opinionated ZODB persistent site implementations",
     long_description=_read('README.rst'),
-    url="https://github.com/NextThought/nti.site",
+    url="https://github.com/OpenNTI/nti.site",
     license='Apache',
     keywords='Site management',
     classifiers=[
@@ -33,6 +33,7 @@ setup(
         'Natural Language :: English',
         'Operating System :: OS Independent',
         'Development Status :: 5 - Production/Stable',
+        'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
