@@ -5,40 +5,63 @@ on: [push, pull_request]
 env:
   PYTHONHASHSEED: 1042466059
   ZOPE_INTERFACE_STRICT_IRO: 1
+  # To use editable installs of our nti namespace package combined with
+  # non-editable installs of other packages, you must set this.
+  # This is because setuptools has become broken thanks to PEP660.
+  # Adding the pkg_util line to __init__.py is a partial workaround,
+  # When it is loaded first on the path.
+  #
+  # With setuptools 75.3.0, nothing else worked for all the tools: not
+  # a strict or compat editable_mode, not an empty __init__.py,
+  #
+  # See https://github.com/pypa/pip/issues/11587
+  # And https://github.com/pypa/setuptools/issues/4039
+  PYTHONPATH: src
+
 
 
 jobs:
   test:
     strategy:
       matrix:
-        python-version: [2.7, pypy2, pypy3, 3.6, 3.7, 3.8, 3.9]
+        python-version:
+          - "pypy-3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+        extras:
+          - "[test,docs]"
+        # include:
+        #   - python-version: "3.13"
+        #     extras: "[test,docs,gevent,pyramid]"
 
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Pip cache
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('setup.*') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+        cache: 'pip'
+        cache-dependency-path: 'setup.py'
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
         python -m pip install -U coverage
-        python -m pip install -U -e ".[test,docs]"
+        python -m pip install -v -U -e ".${{ matrix.extras }}"
     - name: Test
       run: |
-        coverage run -m zope.testrunner --test-path=src  --auto-color --auto-progress
+        python -m coverage run -m zope.testrunner --test-path=src  --auto-color --auto-progress
         coverage run -a -m sphinx -b doctest -d docs/_build/doctrees docs docs/_build/doctests
+        coverage combine || true
+        coverage report -i || true
+    - name: Lint
+      if: matrix.python-version == '3.12'
+      run: |
+        python -m pip install -U pylint
+        pylint nti.zodb
     - name: Submit to Coveralls
-      # This is a container action, which only runs on Linux.
-      uses: AndreMiras/coveralls-python-action@develop
+      uses: coverallsapp/github-action@v2
       with:
         parallel: true
 
@@ -47,6 +70,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Coveralls Finished
-      uses: AndreMiras/coveralls-python-action@develop
+      uses: coverallsapp/github-action@v2
       with:
         parallel-finished: true
