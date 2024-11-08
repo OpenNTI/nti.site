@@ -3,10 +3,8 @@
 """
 Implementations of folders for site policies.
 
-.. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
@@ -32,7 +30,7 @@ class HostSitesFolder(Folder):
 
     def __repr__(self):
         try:
-            return super(HostSitesFolder, self).__repr__()
+            return super().__repr__()
         except ConnectionStateError:
             return object.__repr__(self)
 
@@ -53,6 +51,6 @@ class HostPolicySiteManager(BTreeLocalSiteManager):
 
     def __repr__(self):
         try:
-            return super(HostPolicySiteManager, self).__repr__()
+            return super().__repr__()
         except ConnectionStateError:
             return object.__repr__(self)
