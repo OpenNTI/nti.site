@@ -54,7 +54,6 @@ setup(
         'nti.schema',
         'nti.transactions >= 4.0.0', # nti.transactions.loop
         'persistent',
-        'setuptools',
         'six',
         'transaction >= 2.4.0',  # for looser text/byte handling
         'zope.component >= 5.0.0',

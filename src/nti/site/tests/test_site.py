@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 # disable: accessing protected members, too many methods
@@ -12,7 +11,7 @@ from hamcrest import is_
 from hamcrest import is_not
 from hamcrest import raises
 from hamcrest import calling
-from hamcrest import contains
+from hamcrest import contains_exactly as contains
 from hamcrest import assert_that
 from hamcrest import has_property
 from hamcrest import same_instance
@@ -22,6 +21,7 @@ from hamcrest import has_length
 does_not = is_not
 
 import unittest
+from unittest import mock as fudge
 
 from zope import interface
 
@@ -60,7 +60,7 @@ from nti.testing.base import AbstractTestBase
 
 from persistent import Persistent
 
-import fudge
+
 
 class IMock(Interface): # pylint:disable=inherit-non-class
     pass
@@ -186,7 +186,7 @@ class TestGetSiteForSiteNames(AbstractTestBase):
         class PersistentTrivialSite(Persistent, TrivialSite):
             pass
         trivial_site = PersistentTrivialSite(host_sm)
-        fake_find.is_callable().returns(pers_comps)
+        fake_find.return_value = pers_comps
 
         from zope.interface.ro import C3
         C3.STRICT_IRO = False
@@ -226,7 +226,7 @@ class TestGetComponentHierarchy(AbstractTestBase):
         site.__parent__[site_comps_1.__name__] = site_comps_1
         site.__parent__[site_comps_2.__name__] = site_comps_2
 
-        fake_find.is_callable().returns(site_comps_2)
+        fake_find.return_value = site_comps_2
 
         x = list(get_component_hierarchy(site))
         assert_that(x, is_([site_comps_2, site_comps_1]))
@@ -287,6 +287,7 @@ class TestBTreeSiteMan(AbstractTestBase):
 
 
     def _store_base_subs_in_zodb(self, storage):
+        # pylint:disable=too-many-statements
         from zope.testing.loggingsupport import InstalledHandler
         from contextlib import contextmanager
 
@@ -309,13 +310,13 @@ class TestBTreeSiteMan(AbstractTestBase):
         base_comps = BLSM(None)
         assert isinstance(base_comps, Persistent)
         base_comps.btree_threshold = 0
-        base_comps.__name__ = u'base'
+        base_comps.__name__ = 'base'
         # replace with "broken"
         base_comps.adapters = _LocalAdapterRegistry()
         base_comps.utilities = _LocalAdapterRegistry()
 
         sub_comps = BLSM(None)
-        sub_comps.__name__ = u'sub'
+        sub_comps.__name__ = 'sub'
         base_comps.adapters = _LocalAdapterRegistry()
         base_comps.utilities = _LocalAdapterRegistry()
         sub_comps.__bases__ = (base_comps,)
@@ -435,8 +436,8 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(new_base._adapter_registrations, is_(OOBTree))
         assert_that(new_base._adapter_registrations.keys(),
                     contains(
-                        ((IFoo,), IMock, u''),
-                        ((implementedBy(object),), IFoo, u''),
+                        ((IFoo,), IMock, ''),
+                        ((implementedBy(object),), IFoo, ''),
                     ))
         assert_that(new_base.adapters._provided, is_(OIBTree))
         assert_that(new_base.adapters._adapters[0], is_(OOBTree))
@@ -477,7 +478,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         # In the past, we couldn't register by implemented, but now we can.
         new_base.registerUtility(MockSite(),
                                  provided=implementedBy(MockSite),
-                                 name=u'foo')
+                                 name='foo')
 
         provided2 = new_base.adapters._provided
         # Make sure that it only converted once
@@ -486,8 +487,8 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         assert_that(new_base._utility_registrations.keys(),
                     contains(
-                        (IFoo, u''),
-                        ((implementedBy(MockSite), u'foo')),
+                        (IFoo, ''),
+                        ((implementedBy(MockSite), 'foo')),
                     ))
         assert_that(new_base.utilities._provided, is_(OIBTree))
         assert_that(new_base.utilities._adapters[0], is_(OOBTree))
@@ -508,7 +509,7 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         # But it can't actually be looked up, regardless of whether we
         # convert to btrees or not
-        x = new_sub.queryUtility(MockSite, u'foo')
+        x = new_sub.queryUtility(MockSite, 'foo')
         assert_that(x, is_(none()))
 
     def test_pickle_zodb_lookup_utility(self):
@@ -529,11 +530,11 @@ class TestBTreeSiteMan(AbstractTestBase):
         # Previously this would fail. Now it works.
         new_base.registerUtility(MockSite(),
                                  provided=implementedBy(object),
-                                 name=u'foo')
+                                 name='foo')
 
         new_base.registerUtility(MockSite(),
                                  provided=IMock,
-                                 name=u'foo')
+                                 name='foo')
 
         provided2 = new_base.adapters._provided
         # Make sure that it only converted once
@@ -542,9 +543,9 @@ class TestBTreeSiteMan(AbstractTestBase):
 
         assert_that(new_base._utility_registrations.keys(),
                     contains(
-                        (IFoo, u''),
-                        (IMock, u'foo'),
-                        (implementedBy(object), u'foo'),
+                        (IFoo, ''),
+                        (IMock, 'foo'),
+                        (implementedBy(object), 'foo'),
                     ))
         assert_that(new_base.utilities._provided, is_(OIBTree))
         assert_that(new_base.utilities._adapters[0], is_(OOBTree))
@@ -563,7 +564,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         x = new_sub.queryUtility(IFoo)
         assert_that(x, is_(MockSite))
 
-        x = new_sub.queryUtility(IMock, u'foo')
+        x = new_sub.queryUtility(IMock, 'foo')
         assert_that(x, is_(MockSite))
 
 
@@ -607,7 +608,7 @@ class TestBTreeSiteMan(AbstractTestBase):
         assert_that(comps._utility_registrations, is_(OOBTree))
         assert_that(comps._utility_registrations.keys(),
                     contains(
-                        ((IFoo, u'')),
+                        ((IFoo, '')),
                     ))
         assert_that(comps.utilities._provided, is_(OIBTree))
         assert_that(comps.utilities._adapters[0], is_(OOBTree))
@@ -663,12 +664,6 @@ from zope.interface.tests.test_adapter import CustomTypesBaseAdapterRegistryTest
 
 class BTreeLocalAdapterRegistryCustomTypesTest(CustomTypesBaseAdapterRegistryTests):
 
-    # Py3: assertRaisesRegexp is deprecated. Make the replacement available
-    # everywhere.
-    assertRaisesRegex = getattr(unittest.TestCase,
-                                'assertRaisesRegex',
-                                unittest.TestCase.assertRaisesRegexp)
-
     def _getMappingType(self):
         return OOBTree
 
@@ -710,7 +705,7 @@ class BTreeLocalAdapterRegistryCustomTypesTest(CustomTypesBaseAdapterRegistryTes
             second = [self.__bt_to_dict(x) for x in second]
 
 
-        super(BTreeLocalAdapterRegistryCustomTypesTest, self).assertEqual(first, second, msg=msg)
+        super().assertEqual(first, second, msg=msg)
 
     def test__addValueToLeaf_existing_is_tuple_TypeError(self):
         registry = self._makeOne()
