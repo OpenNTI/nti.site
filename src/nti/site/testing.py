@@ -9,11 +9,6 @@ support code from :mod:`nti.testing.zodb`.
 
 .. versionadded:: 2.1.0
 """
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
-
 import unittest
 import functools
 
@@ -59,11 +54,7 @@ def format_tree(folder, **kwargs):
 
     .. versionadded:: 2.2.0
     """
-    if str is bytes:
-        # Handles unicode and bytes mixed appropriately
-        import cStringIO as io
-    else:
-        import io
+    import io
     out = io.StringIO()
     kwargs['file'] = out
     print_tree(folder, **kwargs)
@@ -72,7 +63,8 @@ def format_tree(folder, **kwargs):
 
 def print_tree(folder, **kwargs):
     """
-    print_tree(folder, file=sys.stdout, show_unknown=repr, basic_indent='    ', details=('id', 'type', 'len', 'siteManager')) -> None
+    print_tree(folder, file=sys.stdout, show_unknown=repr, basic_indent='    ',
+               details=('id', 'type', 'len', 'siteManager')) -> None
 
     Print a descriptive tree of the contents of the dict-like *folder* to *file*.
 
@@ -84,7 +76,7 @@ def print_tree(folder, **kwargs):
        Print the contents of site managers by default.
        Fix a bug not passing the *basic_indent* to recursive calls.
     """
-    # pylint:disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint:disable=too-many-locals,too-many-branches,too-many-statements,too-complex
     # XXX: Refactor me.
     import sys
     from zope.site.interfaces import IRootFolder
@@ -99,7 +91,7 @@ def print_tree(folder, **kwargs):
     details = kwargs.get('details', ('id', 'type', 'len', 'siteManager'))
     name = kwargs.get('name', None)
     show_unknown = kwargs.get('show_unknown', repr)
-    known_types = kwargs.get('known_types', (int, str, type(u''), float, type(None)))
+    known_types = kwargs.get('known_types', (int, str, float, type(None)))
     extra_details = kwargs.get('extra_details', lambda o: ())
 
     indent = basic_indent * depth
@@ -108,6 +100,7 @@ def print_tree(folder, **kwargs):
     if name is None:
         name = getattr(folder, '__name__', None)
         if not name:
+            # pylint:disable=protected-access
             if getattr(folder, '_p_jar', None) and folder._p_jar.root() is folder:
                 name = "<Connection Root Dictionary>"
             else:
@@ -157,6 +150,7 @@ def print_tree(folder, **kwargs):
             recur_args['name'] = k
             print_tree(v, **recur_args)
 
+    # pylint:disable=no-value-for-parameter
     if 'siteManager' in details and ISite.providedBy(folder):
         site_man = folder.getSiteManager()
         recur_args = kwargs.copy()
@@ -195,7 +189,7 @@ class persistent_site_trans(zodb.mock_db_trans):
             If not given, the site found at :attr:`main_application_folder_name`
             will be the current site.
         """
-        super(persistent_site_trans, self).__init__(db)
+        super().__init__(db)
         self._site_cm = None
         self._site_name = site_name
 
@@ -220,7 +214,7 @@ class persistent_site_trans(zodb.mock_db_trans):
                                            main_setup=self.on_application_and_sites_installed)
 
     def on_connection_opened(self, conn):
-        super(persistent_site_trans, self).on_connection_opened(conn)
+        super().on_connection_opened(conn)
         main_name = hostpolicy.text_type(self.main_application_folder_name)
 
         root = conn.root()
@@ -233,13 +227,13 @@ class persistent_site_trans(zodb.mock_db_trans):
                 sitemanc = get_site_for_site_names((self._site_name,))
 
         self._site_cm = currentSite(sitemanc)
-        self._site_cm.__enter__() # pylint:disable=no-member
+        self._site_cm.__enter__() # pylint:disable=no-member,unnecessary-dunder-call
         assert component.getSiteManager() == sitemanc.getSiteManager()
         return conn
 
     def __exit__(self, t, v, tb):
         result = self._site_cm.__exit__(t, v, tb) # pylint:disable=no-member
-        super(persistent_site_trans, self).__exit__(t, v, tb)
+        super().__exit__(t, v, tb)
         return result
 
 
@@ -292,14 +286,16 @@ def default_db_factory():
 
 def uses_independent_db_site(*args, **kwargs):
     """
-    uses_independent_db_site(db_factory=None, installer_factory=persistent_site_trans, installer_kwargs={}) -> function
+    uses_independent_db_site(db_factory=None, installer_factory=persistent_site_trans,
+                             installer_kwargs={}) -> function
 
     A decorator or decorator factory. Creates a new database using *db_factory*,
     initializes it using *installer_factory*, and then runs the body of the function
     in a site and site manager that are disconnected from the database.
 
     If the function is a unittest method, the unittest object's ``db`` attribute
-    will be set to the created db during executing. Likewise, the :class:`nti.testing.zodb.ZODBLayer`
+    will be set to the created db during executing. Likewise,
+    the :class:`nti.testing.zodb.ZODBLayer`
     ``db`` attribute (and layers that extend from it like :class:`SharedConfiguringTestLayer`)
     will be set to this object and returned to the previous value on exit.
 
@@ -339,10 +335,11 @@ def uses_independent_db_site(*args, **kwargs):
     assert not kwargs
     assert len(args) == 1 or not args
 
-    func_factory = lambda func: _mock_ds_wrapper_for(func,
-                                                     installer_factory,
-                                                     installer_kwargs,
-                                                     db_factory)
+    def func_factory(func):
+        return _mock_ds_wrapper_for(func,
+                                    installer_factory,
+                                    installer_kwargs,
+                                    db_factory)
     if len(args) == 1:
         # Being used as a plain decorator
         return func_factory(args[0])
@@ -379,7 +376,6 @@ class SharedConfiguringTestLayer(zodb.ZODBLayer,
 
     @classmethod
     def tearDown(cls):
-        from .site import BTreeLocalAdapterRegistry
         from .folder import HostPolicySiteManager
         del HostPolicySiteManager.btree_threshold
         assert hasattr(HostPolicySiteManager, 'btree_threshold')

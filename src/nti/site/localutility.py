@@ -7,10 +7,9 @@ A local utility is a (persistent) utility registered in a local (persistent) sit
 manager. Local utilities need to be traversable and thus are usually children
 of the local site manager itself.
 
-.. $Id$
+
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
@@ -96,7 +95,8 @@ def queryNextUtility(context, interface, default=None):
 
     This gives site-child.example.com this (correct) resolution order::
 
-        site-child.example.com, child.example.com, site-root.example,com Application, example.com, GSM
+        site-child.example.com, child.example.com, site-root.example.com
+            Application, example.com, GSM
 
     However, :func:`zope.component.queryNextUtility` only looks in the *first* base to find
     a next utility. Therefore, when site-janux.ou.edu asks for a next utility,

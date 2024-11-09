@@ -18,7 +18,8 @@ exclude_lines =
     if sys.platform == 'win32':
     if mswindows:
     if is_windows:
-
+precision = 2
+fail_under = 99
 # Local Variables:
 # mode: conf
 # End:

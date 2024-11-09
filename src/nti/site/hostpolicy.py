@@ -38,7 +38,7 @@ from .folder import HostSitesFolder
 from .interfaces import IMainApplicationFolder
 from .site import BTreeLocalSiteManager
 
-text_type = str if bytes is not str else unicode
+text_type = str
 
 def synchronize_host_policies():
     """
@@ -179,14 +179,15 @@ class _StrDefault(object):
 
 
 DEFAULT_ROOT_NAME = _StrDefault(
-    u'Application', "default root folder")
+    'Application', "default root folder")
 DEFAULT_ROOT_ALIAS = _StrDefault(
-    u'nti.dataserver_root', "default alias of root folder")
+    'nti.dataserver_root', "default alias of root folder")
 DEFAULT_MAIN_NAME = _StrDefault(
-    u'dataserver2', "default main application folder")
+    'dataserver2', "default main application folder")
 DEFAULT_MAIN_ALIAS = _StrDefault(
-    u'nti.dataserver', "default alias of main application folder")
+    'nti.dataserver', "default alias of main application folder")
 
+# pylint:disable-next=too-many-positional-arguments
 def install_main_application_and_sites(conn,
                                        root_name=DEFAULT_ROOT_NAME,
                                        root_alias=DEFAULT_ROOT_ALIAS,
@@ -271,19 +272,21 @@ def install_main_application_and_sites(conn,
     root_folder = rootFolder()
     # NOTE that the root_folder doesn't get a __name__!
     conn.add(root_folder)  # Ensure we have a connection so we can become KeyRefs
-    assert root_folder._p_jar is conn
+    assert root_folder._p_jar is conn # pylint:disable=protected-access
 
     # The root is generally presumed to be an ISite, so make it so
     root_sm = BTreeLocalSiteManager(root_folder)  # site is IRoot, so __base__ is the GSM
     assert root_sm.__parent__ is root_folder
     assert root_sm.__bases__ == (component.getGlobalSiteManager(),)
     conn.add(root_sm)  # Ensure we have a connection so we can become KeyRefs
-    assert root_sm._p_jar is conn
+    assert root_sm._p_jar is conn # pylint:disable=protected-access
 
     root_folder.setSiteManager(root_sm)
+    # pylint:disable-next=no-value-for-parameter
     assert ISite.providedBy(root_folder)
 
     main_folder = main_factory()
+    # pylint:disable-next=no-value-for-parameter
     if not IMainApplicationFolder.providedBy(main_folder):
         interface.alsoProvides(main_folder, IMainApplicationFolder)
     conn.add(main_folder)
@@ -299,11 +302,13 @@ def install_main_application_and_sites(conn,
     assert lsm.__bases__ == (root_sm,), (lsm.__bases__, root_sm)
 
     main_folder.setSiteManager(lsm)
+    # pylint:disable-next=no-value-for-parameter
     assert ISite.providedBy(main_folder)
 
     with current_site(main_folder):
         current_site_man = component.getSiteManager()
-        assert current_site_man is lsm, ("Component hooks must have been reset", current_site_man, lsm)
+        assert current_site_man is lsm, ("Component hooks must have been reset",
+                                         current_site_man, lsm)
 
         # The name that many Zope components assume
         root[root_name] = root_folder
@@ -358,7 +363,7 @@ def get_all_host_sites():
     #   site1: [site1, ds, base, GSM]
     #   site2: [site2, site1, base, GSM]
     #   site3: [site3, ds, base, GSM])
-    ordered = list()
+    ordered = []
 
     while site_to_site_ro:
         for site, managers in dict(site_to_site_ro).items():
@@ -393,7 +398,7 @@ def run_job_in_all_host_sites(func):
 
     logger.debug("Asked to run job %s in ALL sites", func)
 
-    results = list()
+    results = []
     ordered = get_all_host_sites()
     for site in ordered:
         results.append(run_job_in_host_site(site, func))

@@ -46,7 +46,7 @@ class _RunJobInSite(TransactionLoop):
         self.job_name = kwargs.pop('job_name')
         self.side_effect_free = kwargs.pop('side_effect_free')
         self.root_folder_name = kwargs.pop('root_folder_name')
-        super(_RunJobInSite, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def describe_transaction(self, *args, **kwargs):
         if self.job_name:
@@ -77,14 +77,14 @@ class _RunJobInSite(TransactionLoop):
                 raise SiteNotInstalledError("Hooks not installed?")
             return self.handler(*args, **kwargs)
 
-    def setUp(self):
+    def setUp(self): # pylint:disable=arguments-differ
         # After the transaction manager has been put into explicit
         # mode, open the connection. This lets it perform certain
         # optimizations.
         db = component.getUtility(IDatabase)
         self._connection = db.open()
 
-    def tearDown(self):
+    def tearDown(self): # pylint:disable=arguments-differ
         if self._connection is not None:
             try:
                 self._connection.close()
@@ -104,6 +104,7 @@ def get_possible_site_names(*args, **kwargs):
     result = utility(*args, **kwargs) if utility is not None else None
     return result
 
+# pylint:disable=too-many-positional-arguments
 @interface.provider(ISiteTransactionRunner)
 def run_job_in_site(func,
                     retries=0,
@@ -111,7 +112,7 @@ def run_job_in_site(func,
                     site_names=_marker,
                     job_name=None,
                     side_effect_free=False,
-                    root_folder_name=u'nti.dataserver'):
+                    root_folder_name='nti.dataserver'):
     """
     Runs the function given in `func` in a transaction and dataserver local
     site manager. See :class:`.ISiteTransactionRunner`

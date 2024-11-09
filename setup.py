@@ -1,9 +1,8 @@
 import codecs
-from setuptools import setup, find_packages
-
+from setuptools import setup
+from setuptools import find_namespace_packages
 
 TESTS_REQUIRE = [
-    'fudge',
     'nti.testing >= 3.0.0',
     'pyhamcrest',
     'z3c.baseregistry',
@@ -34,22 +33,19 @@ setup(
         'Operating System :: OS Independent',
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
     zip_safe=True,
-    packages=find_packages('src'),
+    packages=find_namespace_packages(where='src'),
     package_dir={'': 'src'},
     include_package_data=True,
-    namespace_packages=['nti'],
-    tests_require=TESTS_REQUIRE,
     install_requires=[
         'BTrees >= 4.3.2',  # permissive get()
         # test dependencies have this at >= 5.6.0; for consistency,
@@ -58,7 +54,6 @@ setup(
         'nti.schema',
         'nti.transactions >= 4.0.0', # nti.transactions.loop
         'persistent',
-        'setuptools',
         'six',
         'transaction >= 2.4.0',  # for looser text/byte handling
         'zope.component >= 5.0.0',
@@ -77,4 +72,5 @@ setup(
             'sphinx_rtd_theme',
         ] + TESTS_REQUIRE # To be able to import nti.site.testing
     },
+    python_requires=">=3.10",
 )

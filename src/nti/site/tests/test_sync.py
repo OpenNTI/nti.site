@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
-__docformat__ = "restructuredtext en"
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
@@ -13,7 +11,7 @@ from hamcrest import is_not
 from hamcrest import raises
 from hamcrest import calling
 from hamcrest import has_key
-from hamcrest import contains
+from hamcrest import contains_exactly as contains
 from hamcrest import not_none
 from hamcrest import has_length
 from hamcrest import assert_that
@@ -208,12 +206,13 @@ class TestSiteSync(unittest.TestCase):
     _events = ()
 
     def setUp(self):
-        super(TestSiteSync, self).setUp()
+        super().setUp()
         for site in _SITES:
             # See explanation in nti.appserver.policies.sites; in short,
             # the teardown process can disconnect the resolution order of
             # these objects, and since they don't descend from the bases declared
             # in that module, they fail to get reset.
+            # pylint:disable-next=unnecessary-dunder-call
             site.__init__(site.__parent__, name=site.__name__, bases=site.__bases__)
             BASE.registerUtility(site, name=site.__name__, provided=IComponents)
         self._events = []
@@ -228,14 +227,16 @@ class TestSiteSync(unittest.TestCase):
     def tearDown(self):
         for site in _SITES:
             BASE.unregisterUtility(site, name=site.__name__, provided=IComponents)
-        BASE.unregisterHandler(self._event_handler, required=(IHostPolicySiteManager, INewLocalSite))
-        super(TestSiteSync, self).tearDown()
+        BASE.unregisterHandler(self._event_handler,
+                               required=(IHostPolicySiteManager, INewLocalSite))
+        super().tearDown()
 
     def test_simple_ro(self):
         # Check that resolution order is what we think. See
         # site.py
         # This simulates the layout in the database and global
         # site manager.
+        # pylint:disable=multiple-statements
         class GSM(object): pass
         # DB
         class Root(GSM): pass
@@ -314,18 +315,18 @@ class TestSiteSync(unittest.TestCase):
                     return 'P' + str(x.__parent__.__name__)
                 return x.__name__
             assert_that([_name(x) for x in ro.ro(sites[DEMOALPHA.__name__].getSiteManager())],
-                        is_([u'Pdemo-alpha.nextthoughttest.com',
-                             u'demo-alpha.nextthoughttest.com',
-                             u'Pdemo.nextthoughttest.com',
-                             u'demo.nextthoughttest.com',
-                             u'Peval.nextthoughttest.com',
-                             u'eval.nextthoughttest.com',
-                             u'Pdataserver2',
-                             u'PNone',
+                        is_(['Pdemo-alpha.nextthoughttest.com',
+                             'demo-alpha.nextthoughttest.com',
+                             'Pdemo.nextthoughttest.com',
+                             'demo.nextthoughttest.com',
+                             'Peval.nextthoughttest.com',
+                             'eval.nextthoughttest.com',
+                             'Pdataserver2',
+                             'PNone',
                              'base']))
 
             # including if we ask to travers from top to bottom
-            names = list()
+            names = []
             def func():
                 names.append(_name(component.getSiteManager()))
 
@@ -335,14 +336,14 @@ class TestSiteSync(unittest.TestCase):
             # TODO: why aren't we maintaining alphabetical order?
             # we should be, but sometimes we don't
             assert_that(names, is_(any_of(
-                [u'Peval.nextthoughttest.com',
-                 u'Pdemo.nextthoughttest.com',
-                 u'Peval-alpha.nextthoughttest.com',
-                 u'Pdemo-alpha.nextthoughttest.com'],
-                [u'Peval.nextthoughttest.com',
-                 u'Peval-alpha.nextthoughttest.com',
-                 u'Pdemo.nextthoughttest.com',
-                 u'Pdemo-alpha.nextthoughttest.com'])))
+                ['Peval.nextthoughttest.com',
+                 'Pdemo.nextthoughttest.com',
+                 'Peval-alpha.nextthoughttest.com',
+                 'Pdemo-alpha.nextthoughttest.com'],
+                ['Peval.nextthoughttest.com',
+                 'Peval-alpha.nextthoughttest.com',
+                 'Pdemo.nextthoughttest.com',
+                 'Pdemo-alpha.nextthoughttest.com'])))
 
             # And that it's what we get back if we ask for it
             assert_that(get_site_for_site_names((DEMOALPHA.__name__,)),
@@ -384,7 +385,7 @@ class TestSiteSync(unittest.TestCase):
 
             # Invalid mapping raises
             site_mapping = SiteMapping(source_site_name=transient_site,
-                                       target_site_name=u'nonexistent_site')
+                                       target_site_name='nonexistent_site')
             assert_that(calling(site_mapping.get_target_site),
                         raises(SiteNotFoundError))
 

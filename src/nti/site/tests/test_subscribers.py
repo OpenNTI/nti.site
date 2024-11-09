@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
+
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
@@ -16,7 +14,7 @@ from hamcrest import assert_that
 from hamcrest import same_instance
 does_not = is_not
 
-import fudge
+from unittest import mock as fudge
 
 from zope.interface import implementer
 
@@ -85,7 +83,7 @@ class TestSubscriber(AbstractTestBase):
 
     @fudge.patch('nti.site.subscribers.getSite')
     def test_not_replace_same(self, fake_get):
-        fake_get.is_callable().returns(self)
+        fake_get.return_value = self
 
         # If we actually tried to set TestSubscriber as the site,
         # we'd blow up
@@ -97,7 +95,7 @@ class TestSubscriber(AbstractTestBase):
         host_comps = BaseComponents(BASE, 'example.com', (BASE,))
         host_sm = HSM('example.com', 'siteman', host_comps, pers_comps)
 
-        fake_get.is_callable().returns(TrivialSite(host_sm))
+        fake_get.return_value = TrivialSite(host_sm)
 
         host_comps2 = BaseComponents(BASE, 'other.com', (BASE,))
         host_sm2 = HSM('other.com', 'siteman', host_comps2, pers_comps)

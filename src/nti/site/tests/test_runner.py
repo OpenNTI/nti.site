@@ -39,12 +39,12 @@ from ..interfaces import SiteNotInstalledError
 class TestRunner(base.AbstractTestBase):
 
     def setUp(self):
-        super(TestRunner, self).setUp()
+        super().setUp()
         db = ZODB.DB(DemoStorage(name='base'))
         component.provideUtility(db, IDatabase)
 
         conn = db.open()
-        smc = conn.root()[u'nti.dataserver'] = SiteManagerContainer()
+        smc = conn.root()['nti.dataserver'] = SiteManagerContainer()
         smc.setSiteManager(component.getGlobalSiteManager())
 
         transaction.commit()
@@ -58,7 +58,7 @@ class TestRunner(base.AbstractTestBase):
                 return self._root
 
         c = MockConn()
-        c.root()[u'nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
+        c.root()['nti.dataserver'] = TrivialSite(component.getGlobalSiteManager())
         def handler():
             return 42
 
@@ -76,7 +76,7 @@ class TestRunner(base.AbstractTestBase):
                 self.closed = True
 
         c = MockConn()
-        c._root[u'nti.dataserver'] = TrivialSite(None)
+        c._root['nti.dataserver'] = TrivialSite(None)
 
         class MockDB(object):
             def open(self):
@@ -95,7 +95,7 @@ class TestRunner(base.AbstractTestBase):
 
         # Note: This file's coding is utf-8!
         def func():
-            "A docstring with utf-8 chars: 😀"
+            """A docstring with utf-8 chars: 😀"""
             assert_that(component.getSiteManager(), is_(component.getGlobalSiteManager()))
             assert_that(transaction.get().description, is_(expected_desc))
             assert_that(transaction.get().description, is_(expected_desc_type))
@@ -130,7 +130,7 @@ class TestRunner(base.AbstractTestBase):
         class Callable(object):
             # Like functools.partial, this doesn't expose a __name__ or __doc__.
             def __getattribute__(self, name):
-                if name in ('__doc__', '__name__'):
+                if name in {'__doc__', '__name__'}:
                     raise AttributeError(name)
                 return object.__getattribute__(self, name) # pragma: no cover
 

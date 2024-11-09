@@ -354,19 +354,22 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'https://docs.python.org/': None,
-    'https://zodb-docs.readthedocs.io/en/latest/': None,
-    'https://zopeinterface.readthedocs.io/en/latest/': None,
-    'https://zopecomponent.readthedocs.io/en/latest/': None,
-    'https://zopesite.readthedocs.io/en/latest/': None,
-    'https://zopetraversing.readthedocs.io/en/latest/': None,
-    'https://ntitesting.readthedocs.io/en/latest/': None,
+    'python': ('https://docs.python.org/', None),
+    'persistent': ('https://persistent.readthedocs.io/en/latest', None),
+    'zodb': ('http://www.zodb.org/en/latest/', None),
+    'schema': ('https://zopeschema.readthedocs.io/en/latest/', None),
+    'component': ('https://zopecomponent.readthedocs.io/en/latest/', None),
+    'i18n': ('https://zopei18nmessageid.readthedocs.io/en/latest/', None),
+    'testing': ('https://ntitesting.readthedocs.io/en/latest/', None),
+    'traversing': ('https://zopetraversing.readthedocs.io/en/latest/', None),
+    'interface': ('https://zopeinterface.readthedocs.io/en/latest/', None),
 }
 
+
 extlinks = {'issue': ('https://github.com/NextThought/nti.site/issues/%s',
-                      'issue #'),
+                      'issue #%s'),
             'pr': ('https://github.com/NextThought/nti.site/pull/%s',
-                   'pull request #')}
+                   'pull request #%s')}
 
 autodoc_default_flags = ['members', 'show-inheritance']
 autoclass_content = 'both'

@@ -29,8 +29,6 @@ from zope.component.interfaces import ISite
 
 from zope.lifecycleevent.interfaces import IObjectRemovedEvent
 
-from zope.location.interfaces import LocationError
-
 from zope.proxy import ProxyBase
 from zope.proxy import non_overridable
 
@@ -137,7 +135,7 @@ def threadSiteSubscriber(new_site, _event):
         # first, and then into the real traversal?
         return
 
-
+    # pylint:disable=no-value-for-parameter
     if IHostPolicyFolder.providedBy(current_site) and \
        IHostPolicyFolder.providedBy(new_site):
         # This is typically the case when we traverse directly

@@ -19,6 +19,7 @@ from zope import interface
 from zope.component.hooks import getSite
 
 from zope.site.site import LocalSiteManager
+# pylint:disable-next=import-private-name
 from zope.site.site import _LocalAdapterRegistry
 
 from zope.interface.interfaces import IComponents
@@ -120,7 +121,7 @@ def get_site_for_site_names(site_names, site=None):
         # Do we have a persistent site installed in the database? If yes,
         # we want to use that.
         try:
-            pers_site = site[u'++etc++hostsites'][site_name]
+            pers_site = site['++etc++hostsites'][site_name]
             site = pers_site
         except (KeyError, TypeError):
             # No, nothing persistent, dummy one up.
@@ -253,7 +254,7 @@ class BTreeLocalAdapterRegistry(_LocalAdapterRegistry):
             # not possible anymore. So just don't allow it.
             raise TypeError("Forbidding mutation of unmigrated data in %r. Call rebuild()."
                             % self)
-        return super(BTreeLocalAdapterRegistry, self)._addValueToLeaf(existing_leaf_sequence,
+        return super()._addValueToLeaf(existing_leaf_sequence,
                                                                       new_item)
 
 
@@ -287,8 +288,8 @@ class BTreePersistentComponents(PersistentComponents):
         self.adapters = BTreeLocalAdapterRegistry()
         self.utilities = BTreeLocalAdapterRegistry()
         self.adapters.__parent__ = self.utilities.__parent__ = self
-        self.adapters.__name__ = u'adapters'
-        self.utilities.__name__ = u'utilities'
+        self.adapters.__name__ = 'adapters'
+        self.utilities.__name__ = 'utilities'
 
     def _check_and_btree_map(self, mapping_name):
         # The registrations are mappings that look like this:
@@ -303,12 +304,12 @@ class BTreePersistentComponents(PersistentComponents):
             # *is*. That's why __setstate__ is there and not here...it doesn't make much sense here.
 
     def registerUtility(self, *args, **kwargs):  # pylint:disable=arguments-differ
-        result = super(BTreePersistentComponents, self).registerUtility(*args, **kwargs)
+        result = super().registerUtility(*args, **kwargs) # pylint:disable=assignment-from-none
         self._check_and_btree_map('_utility_registrations')
         return result
 
     def registerAdapter(self, *args, **kwargs): # pylint:disable=arguments-differ
-        result = super(BTreePersistentComponents, self).registerAdapter(*args, **kwargs)
+        result = super().registerAdapter(*args, **kwargs) # pylint:disable=assignment-from-no-return
         self._check_and_btree_map('_adapter_registrations')
         return result
 
@@ -337,7 +338,7 @@ class BTreeLocalSiteManager(BTreePersistentComponents, LocalSiteManager):
     # pylint:disable=too-many-ancestors
 
     def __setstate__(self, state):
-        super(BTreeLocalSiteManager, self).__setstate__(state)
+        super().__setstate__(state)
         for reg in self.adapters, self.utilities:
             if (not isinstance(reg, BTreeLocalAdapterRegistry)
                     and isinstance(reg, _LocalAdapterRegistry)):
@@ -382,18 +383,21 @@ class SiteMapping(SchemaConfigured):
         return result
 
 
-# Legacy notes:
-# Opening the connection registered it with the transaction manager as an ISynchronizer.
-# Ultimately this results in newTransaction being called on the connection object
-# at `transaction.begin` time, which in turn syncs the storage. However,
-# when multi-databases are used, the other connections DO NOT get this called on them
-# if they are implicitly loaded during the course of object traversal or even explicitly
-# loaded by name turing an active transaction. This can lead to extra read conflict errors
-# (particularly with RelStorage which explicitly polls for invalidations at sync time).
-# (Once a multi-db connection has been used, then the next time it would be sync'd. A multi-db
-# connection is associated with the same connection to another database for its lifetime, and
-# when open()'d will sync all other such connections. Corrollary: ALWAYS go through
-# a connection object to get access to multi databases; never go through the database object itself.)
+# Legacy notes: Opening the connection registered it with the
+# transaction manager as an ISynchronizer. Ultimately this results in
+# newTransaction being called on the connection object at
+# `transaction.begin` time, which in turn syncs the storage. However,
+# when multi-databases are used, the other connections DO NOT get this
+# called on them if they are implicitly loaded during the course of
+# object traversal or even explicitly loaded by name turing an active
+# transaction. This can lead to extra read conflict errors
+# (particularly with RelStorage which explicitly polls for
+# invalidations at sync time). (Once a multi-db connection has been
+# used, then the next time it would be sync'd. A multi-db connection
+# is associated with the same connection to another database for its
+# lifetime, and when open()'d will sync all other such connections.
+# Corrollary: ALWAYS go through a connection object to get access to
+# multi databases; never go through the database object itself.)
 
 # As a workaround, we iterate across all the databases and sync them manually; this increases the
 # cost of handling transactions for things that do not use the other connections, but ensures

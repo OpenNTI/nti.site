@@ -3,10 +3,10 @@
 """
 Site interfaces.
 
-.. $Id$
+
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+
 __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
@@ -18,6 +18,7 @@ from zope.site.interfaces import ILocalSiteManager
 from nti.schema.field import Number
 from nti.schema.field import TextLine
 
+# pylint:disable=too-many-ancestors,inherit-non-class,no-self-argument,
 
 class InappropriateSiteError(LookupError):
     """
@@ -76,7 +77,7 @@ class IHostSitesFolder(IFolder):
     :class:`IHostPolicyFolder`
     """
 
-    lastSynchronized = Number(title=u"The timestamp at which this object was last synchronized .",
+    lastSynchronized = Number(title="The timestamp at which this object was last synchronized .",
                               default=0.0)
     lastSynchronized.setTaggedValue('_ext_excluded_out', True)
 
@@ -88,7 +89,7 @@ class ITransactionSiteNames(interface.Interface):
     """
 
     def __call__(*args, **kwargs):
-        "Return the possible site names"
+        """Return the possible site names"""
 
 
 class ISiteTransactionRunner(interface.Interface):
@@ -97,6 +98,7 @@ class ISiteTransactionRunner(interface.Interface):
     the ZODB, persistent site, and its environment.
     """
 
+    # pylint:disable-next=too-many-positional-arguments
     def __call__(func, retries=0, sleep=None, site_names=(), side_effect_free=False,
                  root_folder_name='nti.dataserver'):
         """
@@ -147,9 +149,9 @@ class ISiteMapping(interface.Interface):
     existing site.
     """
 
-    source_site_name = TextLine(title=u"The source site name")
+    source_site_name = TextLine(title="The source site name")
 
-    target_site_name = TextLine(title=u"The target site name")
+    target_site_name = TextLine(title="The target site name")
 
     def get_target_site(self):
         """

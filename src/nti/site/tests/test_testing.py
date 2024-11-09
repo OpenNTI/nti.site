@@ -11,22 +11,24 @@ import unittest
 
 from nti.site import testing
 
+# pylint:disable=protected-access
+
 class TestPrintTree(unittest.TestCase):
 
     def setUp(self):
-        super(TestPrintTree, self).setUp()
+        super().setUp()
         testing.setHooks()
 
     def tearDown(self):
         testing.resetHooks()
-        super(TestPrintTree, self).tearDown()
+        super().tearDown()
 
     def test_print_tree(self):
 
         class Trans(testing.persistent_site_trans):
             printed = None
             def on_application_and_sites_installed(self, folder):
-                super(Trans, self).on_application_and_sites_installed(folder)
+                super().on_application_and_sites_installed(folder)
                 folder._p_jar.root()['key'] = 'value'
                 self.printed = testing.format_tree(folder._p_jar.root())
 

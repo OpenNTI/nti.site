@@ -1,13 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-
-
-.. $Id$
-"""
-
-from __future__ import print_function, absolute_import, division
-__docformat__ = "restructuredtext en"
 
 import unittest
 from hamcrest import assert_that
@@ -24,7 +16,7 @@ class TestUtils(unittest.TestCase):
         from ..utils import unregisterUtility
         from zope.component import getGlobalSiteManager
         from zope.interface import Interface
-        class IFoo(Interface):
+        class IFoo(Interface): # pylint:disable=inherit-non-class
             pass
 
         with warnings.catch_warnings(record=True) as w:
