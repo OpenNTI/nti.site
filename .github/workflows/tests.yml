@@ -5,19 +5,6 @@ on: [push, pull_request]
 env:
   PYTHONHASHSEED: 1042466059
   ZOPE_INTERFACE_STRICT_IRO: 1
-  # To use editable installs of our nti namespace package combined with
-  # non-editable installs of other packages, you must set this.
-  # This is because setuptools has become broken thanks to PEP660.
-  # Adding the pkg_util line to __init__.py is a partial workaround,
-  # When it is loaded first on the path.
-  #
-  # With setuptools 75.3.0, nothing else worked for all the tools: not
-  # a strict or compat editable_mode, not an empty __init__.py,
-  #
-  # See https://github.com/pypa/pip/issues/11587
-  # And https://github.com/pypa/setuptools/issues/4039
-  PYTHONPATH: src
-
 
 
 jobs:
