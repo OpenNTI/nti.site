@@ -14,7 +14,12 @@ jobs:
         python-version:
           - "pypy-3.11"
           - "3.10"
-          - "3.11"
+          # 3.11 commented out because it produces a sphinx
+          # error (TypeError: cannot create weak reference to 'ModuleProxy' object -- using a weakrefset)
+          # https://github.com/OpenNTI/nti.site/actions/runs/28606323971/job/84827971272
+          # This doesn't show up in 3.13 (locally) or 3.10, 3.14 or indeed
+          # any other version on CI.
+          # - "3.11"
           - "3.12"
           - "3.13"
           - "3.14"
